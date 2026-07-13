@@ -30,6 +30,19 @@ it lives in longer plate appearances (``pitch_number >= 3``).
 
 Both generators return ``(raw_df, truth_meta)``; ``truth_meta`` carries the ground truth
 the acceptance tests check against.
+
+Two further fixtures support the off-policy-evaluation harness (SPEC ``9`` / ``11``); they
+are self-contained toy environments, *not* the pitch simulator above:
+
+* :func:`make_logged_bandit` -- a small discrete contextual bandit with a known,
+  non-uniform, state-dependent logging policy, a known mean-reward table ``E[R|s,a]`` and
+  Gaussian reward noise. Its :class:`BanditTruth` exposes an exact analytic evaluator
+  ``policy_value(pi)`` for *any* policy matrix, plus a couple of canonical target policies
+  with precomputed values -- the ground truth for the OPE known-value self-test.
+* :func:`make_two_step_mdp` -- a tiny two-step episodic decision process (a controlled
+  Markov reward process) whose :class:`TwoStepTruth` gives the exact policy value and the
+  exact target-policy Q-functions, so the sequential estimators (step-wise DR, FQE) have an
+  analytically computable target to recover.
 """
 
 from __future__ import annotations
@@ -42,7 +55,15 @@ import pandas as pd
 from .config import load_config
 from .outcomes import OUTCOME1
 
-__all__ = ["make_null_world", "make_positive_world", "simulate_world"]
+__all__ = [
+    "make_null_world",
+    "make_positive_world",
+    "simulate_world",
+    "make_logged_bandit",
+    "make_two_step_mdp",
+    "BanditTruth",
+    "TwoStepTruth",
+]
 
 # --- fixed categories / mappings -------------------------------------------------------
 
@@ -655,3 +676,435 @@ def make_positive_world(
         velo_gap_threshold=velo_gap_threshold,
         **kwargs,
     )
+
+
+# =====================================================================================
+# Off-policy-evaluation fixtures (SPEC 9 / 11)
+# =====================================================================================
+
+
+def _softmax(scores: np.ndarray, axis: int = -1) -> np.ndarray:
+    """Numerically stable softmax over ``axis``."""
+    shifted = scores - scores.max(axis=axis, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / exp.sum(axis=axis, keepdims=True)
+
+
+def _floored_policy(scores: np.ndarray, floor: float) -> np.ndarray:
+    """A softmax policy mixed with a uniform floor so every action keeps mass ``>= floor``.
+
+    Returns ``floor + (1 - A*floor) * softmax(scores)`` row-wise, which is a valid
+    distribution (sums to 1) whose smallest entry is exactly ``floor`` on the least-favoured
+    action. A strictly positive floor guarantees full support, so importance ratios
+    ``pi/mu`` stay finite and bounded by ``1/floor``. Requires ``A * floor < 1``.
+    """
+    n_actions = scores.shape[-1]
+    if n_actions * floor >= 1.0:
+        raise ValueError(f"floor {floor} too large for {n_actions} actions (need A*floor < 1)")
+    return floor + (1.0 - n_actions * floor) * _softmax(scores, axis=-1)
+
+
+def _epsilon_greedy(values: np.ndarray, epsilon: float) -> np.ndarray:
+    """Epsilon-greedy policy on a ``(states, actions)`` value table.
+
+    Puts ``1 - epsilon + epsilon/A`` on ``argmax_a values[s, a]`` and ``epsilon/A`` on the
+    rest, so the policy keeps full support (every action has probability ``>= epsilon/A``).
+    """
+    n_states, n_actions = values.shape
+    pi = np.full((n_states, n_actions), epsilon / n_actions, dtype=np.float64)
+    best = values.argmax(axis=1)
+    pi[np.arange(n_states), best] += 1.0 - epsilon
+    return pi
+
+
+def _sample_categorical(rng: np.random.Generator, probs: np.ndarray) -> np.ndarray:
+    """Vectorised categorical sampling: one draw per row of the ``(n, A)`` matrix ``probs``.
+
+    Uses per-row inverse-CDF (``searchsorted``-free): counts how many cumulative thresholds
+    the uniform draw exceeds. Deterministic for a fixed ``rng`` state.
+    """
+    cdf = np.cumsum(probs, axis=1)
+    u = rng.random(probs.shape[0])
+    # Compare against the A-1 interior thresholds; the count is the sampled index in [0, A).
+    return (u[:, None] >= cdf[:, :-1]).sum(axis=1).astype(np.int64)
+
+
+@dataclass
+class BanditTruth:
+    """Ground truth for a :func:`make_logged_bandit` fixture.
+
+    Attributes
+    ----------
+    q_table : numpy.ndarray, shape (n_states, n_actions)
+        The exact mean-reward table ``E[R | s, a]``.
+    state_marginal : numpy.ndarray, shape (n_states,)
+        The true state distribution ``p(s)`` the contexts are drawn from.
+    behavior_policy : numpy.ndarray, shape (n_states, n_actions)
+        The logging policy ``mu(a | s)`` (full support, non-uniform, state-dependent).
+    targets : dict
+        Named canonical target policies, each a ``(n_states, n_actions)`` matrix.
+    n_states, n_actions : int
+        Sizes.
+    reward_noise : float
+        Standard deviation of the Gaussian reward noise.
+    seed : int
+        Generating seed.
+    """
+
+    q_table: np.ndarray
+    state_marginal: np.ndarray
+    behavior_policy: np.ndarray
+    targets: dict
+    n_states: int
+    n_actions: int
+    reward_noise: float
+    seed: int
+
+    def policy_value(self, pi: np.ndarray) -> float:
+        r"""Exact analytic value of a policy ``pi``.
+
+        .. math:: V(\pi) = \sum_s p(s) \sum_a \pi(a\mid s)\, \mathbb{E}[R\mid s, a]
+
+        Parameters
+        ----------
+        pi : numpy.ndarray, shape (n_states, n_actions)
+            Any policy matrix (rows sum to 1).
+
+        Returns
+        -------
+        float
+            The exact expected reward of ``pi`` under this world.
+        """
+        pi = np.asarray(pi, dtype=np.float64)
+        if pi.shape != self.q_table.shape:
+            raise ValueError(f"pi shape {pi.shape} != q_table shape {self.q_table.shape}")
+        return float((self.state_marginal[:, None] * pi * self.q_table).sum())
+
+    @property
+    def behavior_value(self) -> float:
+        """Exact value of the logging policy ``V(mu)``."""
+        return self.policy_value(self.behavior_policy)
+
+    def target_value(self, name: str) -> float:
+        """Exact value of a named canonical target policy."""
+        return self.policy_value(self.targets[name])
+
+    def target_probs_for(self, states, name_or_matrix) -> np.ndarray:
+        """Per-row target probabilities for the given logged ``states``.
+
+        Parameters
+        ----------
+        states : array-like of int
+            Logged state indices (length ``n``).
+        name_or_matrix : str or numpy.ndarray
+            A key into :attr:`targets` or an explicit ``(n_states, n_actions)`` matrix.
+
+        Returns
+        -------
+        numpy.ndarray, shape (n, n_actions)
+            The target policy row for each logged state.
+        """
+        pi = self.targets[name_or_matrix] if isinstance(name_or_matrix, str) else np.asarray(name_or_matrix)
+        return pi[np.asarray(states, dtype=np.int64)]
+
+    def behavior_probs_for(self, states) -> np.ndarray:
+        """Per-row behavior probabilities ``mu(.|s)`` for the given logged ``states``."""
+        return self.behavior_policy[np.asarray(states, dtype=np.int64)]
+
+
+def make_logged_bandit(
+    n_rounds: int = 8000,
+    seed: int = 20260713,
+    n_states: int = 6,
+    n_actions: int = 5,
+    reward_noise: float = 0.30,
+    propensity_floor: float = 0.04,
+    epsilon: float = 0.10,
+) -> tuple[pd.DataFrame, BanditTruth]:
+    r"""A small discrete contextual bandit with a known logging policy (SPEC ``9`` / ``11``).
+
+    Contexts (states) are drawn i.i.d. from a fixed non-uniform marginal ``p(s)``; the
+    action is drawn from a known, non-uniform, state-dependent logging policy
+    ``mu(a | s)`` with a strictly positive floor (so importance ratios vary but stay
+    bounded by ``1/floor``); the reward is ``E[R | s, a]`` plus Gaussian noise. Every
+    quantity needed for an exact off-policy evaluation is returned in the
+    :class:`BanditTruth`.
+
+    Parameters
+    ----------
+    n_rounds : int, optional
+        Number of logged rounds (rows). Default 8000.
+    seed : int, optional
+        Seed for the single generator driving states, actions and reward noise.
+    n_states, n_actions : int, optional
+        Context and action counts. Defaults 6 and 5.
+    reward_noise : float, optional
+        Standard deviation of the Gaussian reward noise (default 0.30).
+    propensity_floor : float, optional
+        Minimum logging propensity for any action (default 0.04). Must satisfy
+        ``n_actions * propensity_floor < 1``.
+    epsilon : float, optional
+        Exploration rate of the epsilon-greedy canonical target (default 0.10).
+
+    Returns
+    -------
+    (pandas.DataFrame, BanditTruth)
+        ``logged_df`` has one row per round with columns:
+
+        ``state`` (int context), ``action`` (int taken), ``reward`` (float),
+        ``mu_prob`` (the logging propensity of the taken action ``mu(a_t | s_t)``),
+        ``mu_prob_0 ... mu_prob_{A-1}`` (the full logging distribution per row),
+        ``pa_id`` (episode id -- one round is a one-step episode) and ``step`` (all 0).
+
+        ``truth`` is a :class:`BanditTruth` carrying ``q_table`` (``E[R|s,a]``),
+        ``state_marginal`` (``p(s)``), ``behavior_policy`` (``mu``), the analytic
+        ``policy_value`` evaluator and two canonical targets:
+
+        * ``"greedy"`` -- epsilon-greedy on the true ``q_table``;
+        * ``"shift"``  -- a deliberately different-from-``mu`` policy (softmax on the
+          negated logging scores), which puts mass where ``mu`` does not.
+    """
+    if n_actions * propensity_floor >= 1.0:
+        raise ValueError("n_actions * propensity_floor must be < 1 for a valid floored policy")
+    rng = np.random.default_rng(seed)
+
+    # True mean-reward table E[R|s,a]: a spread of values with a clear best action per state.
+    q_table = rng.normal(0.0, 0.6, size=(n_states, n_actions))
+    q_table[np.arange(n_states), rng.integers(0, n_actions, size=n_states)] += 0.5
+
+    # Non-uniform state marginal p(s).
+    sw = rng.uniform(1.0, 3.0, size=n_states)
+    state_marginal = sw / sw.sum()
+
+    # Logging policy mu(a|s): state-dependent softmax with a positive floor.
+    logging_scores = rng.normal(0.0, 1.0, size=(n_states, n_actions))
+    mu = _floored_policy(logging_scores, propensity_floor)
+
+    # Canonical target policies.
+    pi_greedy = _epsilon_greedy(q_table, epsilon)
+    pi_shift = _floored_policy(-1.5 * logging_scores, propensity_floor)
+    targets = {"greedy": pi_greedy, "shift": pi_shift}
+
+    # Sample the logged data.
+    states = _sample_categorical(rng, np.tile(state_marginal, (n_rounds, 1)))
+    actions = _sample_categorical(rng, mu[states])
+    mean_reward = q_table[states, actions]
+    rewards = mean_reward + reward_noise * rng.standard_normal(n_rounds)
+
+    data = {
+        "state": states.astype(np.int64),
+        "action": actions.astype(np.int64),
+        "reward": rewards.astype(np.float64),
+        "mu_prob": mu[states, actions].astype(np.float64),
+    }
+    full_mu = mu[states]
+    for a in range(n_actions):
+        data[f"mu_prob_{a}"] = full_mu[:, a].astype(np.float64)
+    data["pa_id"] = np.arange(n_rounds, dtype=np.int64)  # one round == one 1-step episode
+    data["step"] = np.zeros(n_rounds, dtype=np.int64)
+    logged_df = pd.DataFrame(data)
+
+    truth = BanditTruth(
+        q_table=q_table,
+        state_marginal=state_marginal,
+        behavior_policy=mu,
+        targets=targets,
+        n_states=n_states,
+        n_actions=n_actions,
+        reward_noise=reward_noise,
+        seed=seed,
+    )
+    return logged_df, truth
+
+
+@dataclass
+class TwoStepTruth:
+    """Ground truth for a :func:`make_two_step_mdp` fixture.
+
+    A two-step episodic decision process: step 0 in one of ``n_s0`` states, a deterministic
+    transition ``T`` to one of ``n_s1`` step-1 states, then a terminal step-1 reward. The
+    return is ``r0 + r1`` (undiscounted). Attributes hold every table needed for exact
+    evaluation; :meth:`policy_value` and :meth:`q_functions` give the analytic target value
+    and target Q-functions the sequential estimators must recover.
+    """
+
+    p_s0: np.ndarray  # (n_s0,)
+    R0: np.ndarray  # (n_s0, n_actions) mean step-0 reward
+    R1: np.ndarray  # (n_s1, n_actions) mean step-1 reward
+    T: np.ndarray  # (n_s0, n_actions) -> step-1 state index
+    mu0: np.ndarray  # (n_s0, n_actions) behavior at step 0
+    mu1: np.ndarray  # (n_s1, n_actions) behavior at step 1
+    targets: dict  # name -> (pi0, pi1)
+    n_s0: int
+    n_s1: int
+    n_actions: int
+    reward_noise: float
+    seed: int
+
+    @property
+    def n_states_total(self) -> int:
+        """Total distinct global state ids (step-0 states then step-1 states)."""
+        return self.n_s0 + self.n_s1
+
+    def q_functions(self, pi1: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        r"""Exact Q-functions under a step-1 policy ``pi1``.
+
+        .. math::
+            Q_1(s_1, a) &= \mathbb{E}[R_1 \mid s_1, a] \\
+            Q_0(s_0, a) &= \mathbb{E}[R_0 \mid s_0, a]
+                           + \sum_{a'} \pi_1(a' \mid T(s_0, a))\, Q_1(T(s_0, a), a')
+
+        Returns ``(Q0, Q1)`` with shapes ``(n_s0, n_actions)`` and ``(n_s1, n_actions)``.
+        These are the "return-to-go" values of taking an action then following the target,
+        i.e. exactly the outcome model a doubly-robust or fitted-Q estimator should learn.
+        """
+        pi1 = np.asarray(pi1, dtype=np.float64)
+        q1 = self.R1.copy()
+        v1 = (pi1 * q1).sum(axis=1)  # (n_s1,) value of each step-1 state under pi1
+        q0 = self.R0 + v1[self.T]  # (n_s0, n_actions)
+        return q0, q1
+
+    def policy_value(self, pi0: np.ndarray, pi1: np.ndarray) -> float:
+        r"""Exact expected return ``E[r0 + r1]`` under the target policy ``(pi0, pi1)``.
+
+        .. math:: V(\pi) = \sum_{s_0} p(s_0) \sum_{a} \pi_0(a\mid s_0)\, Q_0(s_0, a)
+        """
+        pi0 = np.asarray(pi0, dtype=np.float64)
+        q0, _ = self.q_functions(pi1)
+        v0 = (pi0 * q0).sum(axis=1)  # (n_s0,)
+        return float((self.p_s0 * v0).sum())
+
+    def target_value(self, name: str) -> float:
+        """Exact value of a named canonical target policy."""
+        pi0, pi1 = self.targets[name]
+        return self.policy_value(pi0, pi1)
+
+    def per_row_target(self, logged: pd.DataFrame, name: str) -> np.ndarray:
+        """Per-row target probabilities for a logged frame (rows aligned to ``logged``)."""
+        pi0, pi1 = self.targets[name]
+        return self._per_row_matrix(logged, pi0, pi1)
+
+    def per_row_q(self, logged: pd.DataFrame, name: str) -> np.ndarray:
+        """Per-row exact target Q-values ``(n_rows, n_actions)`` for a logged frame."""
+        pi0, pi1 = self.targets[name]
+        q0, q1 = self.q_functions(pi1)
+        return self._per_row_matrix(logged, q0, q1)
+
+    def _per_row_matrix(self, logged: pd.DataFrame, tab0: np.ndarray, tab1: np.ndarray) -> np.ndarray:
+        """Assemble a per-row matrix from step-0 / step-1 lookup tables via the global state id."""
+        step = logged["step"].to_numpy()
+        state = logged["state"].to_numpy()
+        out = np.empty((len(logged), self.n_actions), dtype=np.float64)
+        m0 = step == 0
+        m1 = step == 1
+        out[m0] = tab0[state[m0]]
+        out[m1] = tab1[state[m1] - self.n_s0]  # step-1 global ids are offset by n_s0
+        return out
+
+
+def make_two_step_mdp(
+    n_episodes: int = 5000,
+    seed: int = 20260713,
+    n_s0: int = 3,
+    n_s1: int = 4,
+    n_actions: int = 2,
+    reward_noise: float = 0.20,
+    propensity_floor: float = 0.10,
+    epsilon: float = 0.10,
+) -> tuple[pd.DataFrame, TwoStepTruth]:
+    r"""A tiny two-step episodic decision process for the sequential OPE self-tests.
+
+    Each episode: draw ``s0 ~ p(s0)``; take ``a0 ~ mu0(.|s0)`` earning ``r0 = E[R0|s0,a0] +
+    noise``; transition deterministically to ``s1 = T(s0, a0)``; take ``a1 ~ mu1(.|s1)``
+    earning terminal ``r1 = E[R1|s1,a1] + noise``. The undiscounted return is ``r0 + r1``.
+    The behavior policies are floored softmaxes (full support); the canonical target is a
+    one-step-lookahead epsilon-greedy improvement, whose exact value and Q-functions the
+    :class:`TwoStepTruth` provides.
+
+    Global state ids in ``logged_df`` encode the level: step-0 rows carry ``state = s0`` in
+    ``[0, n_s0)``; step-1 rows carry ``state = n_s0 + s1``. This keeps a single ``state``
+    column unambiguous for fitted-Q feature construction.
+
+    Returns
+    -------
+    (pandas.DataFrame, TwoStepTruth)
+        ``logged_df`` has two rows per episode (``step`` 0 then 1) with columns
+        ``pa_id``, ``step``, ``state``, ``action``, ``reward``, ``mu_prob`` and
+        ``mu_prob_0 ... mu_prob_{A-1}``. ``truth`` is a :class:`TwoStepTruth`.
+    """
+    rng = np.random.default_rng(seed)
+
+    sw = rng.uniform(1.0, 2.5, size=n_s0)
+    p_s0 = sw / sw.sum()
+
+    R0 = rng.normal(0.0, 0.5, size=(n_s0, n_actions))
+    R1 = rng.normal(0.0, 0.6, size=(n_s1, n_actions))
+    # Deterministic transition table s1 = T(s0, a0).
+    T = rng.integers(0, n_s1, size=(n_s0, n_actions))
+
+    mu0 = _floored_policy(rng.normal(0.0, 1.0, size=(n_s0, n_actions)), propensity_floor)
+    mu1 = _floored_policy(rng.normal(0.0, 1.0, size=(n_s1, n_actions)), propensity_floor)
+
+    # One-step-lookahead epsilon-greedy target: pi1 greedy on R1, then pi0 greedy on the
+    # induced Q0 (well-defined because pi1 is fixed before pi0).
+    pi1_target = _epsilon_greedy(R1, epsilon)
+    v1_target = (pi1_target * R1).sum(axis=1)
+    q0_target = R0 + v1_target[T]
+    pi0_target = _epsilon_greedy(q0_target, epsilon)
+    targets = {"lookahead_greedy": (pi0_target, pi1_target)}
+
+    # Sample episodes.
+    s0 = _sample_categorical(rng, np.tile(p_s0, (n_episodes, 1)))
+    a0 = _sample_categorical(rng, mu0[s0])
+    r0 = R0[s0, a0] + reward_noise * rng.standard_normal(n_episodes)
+    s1 = T[s0, a0]
+    a1 = _sample_categorical(rng, mu1[s1])
+    r1 = R1[s1, a1] + reward_noise * rng.standard_normal(n_episodes)
+
+    # Interleave step-0 / step-1 rows in episode-major order.
+    pa_id = np.repeat(np.arange(n_episodes, dtype=np.int64), 2)
+    step = np.tile(np.array([0, 1], dtype=np.int64), n_episodes)
+    state = np.empty(2 * n_episodes, dtype=np.int64)
+    state[0::2] = s0
+    state[1::2] = n_s0 + s1
+    action = np.empty(2 * n_episodes, dtype=np.int64)
+    action[0::2] = a0
+    action[1::2] = a1
+    reward = np.empty(2 * n_episodes, dtype=np.float64)
+    reward[0::2] = r0
+    reward[1::2] = r1
+
+    mu_taken = np.empty(2 * n_episodes, dtype=np.float64)
+    mu_taken[0::2] = mu0[s0, a0]
+    mu_taken[1::2] = mu1[s1, a1]
+    full_mu = np.empty((2 * n_episodes, n_actions), dtype=np.float64)
+    full_mu[0::2] = mu0[s0]
+    full_mu[1::2] = mu1[s1]
+
+    data = {
+        "pa_id": pa_id,
+        "step": step,
+        "state": state,
+        "action": action,
+        "reward": reward,
+        "mu_prob": mu_taken,
+    }
+    for a in range(n_actions):
+        data[f"mu_prob_{a}"] = full_mu[:, a]
+    logged_df = pd.DataFrame(data)
+
+    truth = TwoStepTruth(
+        p_s0=p_s0,
+        R0=R0,
+        R1=R1,
+        T=T,
+        mu0=mu0,
+        mu1=mu1,
+        targets=targets,
+        n_s0=n_s0,
+        n_s1=n_s1,
+        n_actions=n_actions,
+        reward_noise=reward_noise,
+        seed=seed,
+    )
+    return logged_df, truth

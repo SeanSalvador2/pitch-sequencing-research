@@ -11,12 +11,14 @@ pieces:
 * :mod:`.falsification` -- order ablation, history-permutation, pseudo-history and
   mechanism-ablation tests through a model-callback interface (decision D17).
 * :mod:`.predictability` -- bits-of-predictability (SPEC ``10``).
+* :mod:`.ope` -- off-policy evaluation (DM / IPS / SNIPS / DR / step-wise DR / FQE +
+  diagnostics), the SPEC ``9`` prescriptive gate.
 * :mod:`.harness` -- ``evaluate_predictions`` / ``compare_views`` / ``write_report``.
 """
 
 from __future__ import annotations
 
-from . import baselines, falsification, harness, metrics, predictability, predictions
+from . import baselines, falsification, harness, metrics, ope, predictability, predictions
 
 __all__ = [
     "predictions",
@@ -24,5 +26,6 @@ __all__ = [
     "baselines",
     "falsification",
     "predictability",
+    "ope",
     "harness",
 ]

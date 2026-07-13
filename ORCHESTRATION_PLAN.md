@@ -104,8 +104,9 @@ code+tests, then docs+notebook).
 
 | unit | dispatched | verdict | commit |
 |---|---|---|---|
-| housekeeping (this file, .gitignore, dedupe config) | — (orchestrator) | — | pending |
-| 0a data layer | pending | | |
+| housekeeping (this file, .gitignore, dedupe config) | — (orchestrator) | — | 811db47 |
+| Phase-2 execution contract | — (orchestrator) | — | a62b168 |
+| 0a data layer | 2026-07-13 | Round 1: high quality, 42 tests green, SPEC-conformant. Review found (1) OM cross-matchup contamination — groupwise cumsum followed by a global `.shift(1)` leaks the previous matchup's totals into the first PA of the next (confirmed by probe); (2) `episode_returns` agreement guard falsely fires when a PA's last pitch has missing `delta_run_exp` (would break on full data); (3) `prev_pitch_type` categorical vocabulary was data-dependent. Sent back for targeted fixes + regression tests. | pending fixes |
 | 0b fixtures + eval | | | |
 | 0c OPE | | | |
 | WS1 | | | |

@@ -99,6 +99,11 @@ code+tests, then docs+notebook).
 | D13 | Shared `pitchseq/runmeta.py` utility (psutil-based) records wall-clock, peak RSS, and run metadata to JSON next to each output — feeds the §7 Pareto plot | one implementation, used by every runnable step |
 | D14 | `results/` added to `.gitignore`; only tiny summary JSON/CSVs may be committed deliberately after review | keep heavy artifacts out of git |
 | D15 | WS0 gains a runnable full-data build step: `python -m pitchseq.build_table` (per-season checkpointed decision-table build, `data/processed/decision_table.parquet`) — first RUNBOOK step of Phase 2 | the decision table is the first thing Sean must build locally |
+| D16 | §8.2 count-based reference baselines (global family-by-count×hand, shrunk pitcher-by-count, first-order transition, pitcher×count×prev) live in `eval/baselines.py` — a deliberate one-file addition to the SPEC §2 tree | they are scoring references used by the harness, not a workstream |
+| D17 | Falsification tests operate through a **model-callback interface** (caller supplies `fit(X,y) → predict_proba`); falsification builds the permuted/pseudo-history datasets and compares losses. Unit tests exercise it with small LightGBM/logistic learners on the synthetic worlds | permutation/pseudo-history tests require retraining; the harness must not know model internals |
+| D18 | Synthetic worlds emit **raw-Statcast-schema-compatible** frames (the minimal column subset the builders need), so fixtures flow through `build_decision_table → states → eval` and exercise the leakage-safe path end-to-end | the strongest form of the SPEC §11 oracle |
+| D19 | `src/pitchseq/runmeta.py` (psutil) lands in unit 0b — wall-clock + peak-RSS context manager feeding `seconds`/`peak_mem_mb` in the prediction schema and all Phase-2 run logs | prediction schema and the Pareto plot need it from the start |
+| D20 | Null world allows **selection** order-dependence but forbids **outcome** order-dependence; positive world injects a known previous-pitch outcome effect (velo-differential whiff boost) with stored ground-truth magnitude | separates finding #1 from #2 (SPEC's three conflated findings); fixtures carry their own truth for acceptance tests |
 
 ## Dispatch log
 

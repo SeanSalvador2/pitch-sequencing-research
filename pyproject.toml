@@ -17,10 +17,12 @@ dependencies = [
     "scipy>=1.10",
     "scikit-learn>=1.3",
     "pyyaml>=6.0",
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+ml = ["lightgbm>=4.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

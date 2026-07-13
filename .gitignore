@@ -1,9 +1,16 @@
 data/
 *.parquet
+!sample_statcast_2024.parquet
 *.db
 *.csv
+!SCHEMA.csv
 .venv/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .pybaseball/
+CLAUDE.md
+*.egg-info/
+.pytest_cache/
+models/
+artifacts/

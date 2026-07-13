@@ -17,10 +17,37 @@ committed 20k sample.
 
 **Phase 1 (now):** all seven workstreams scaffolded and code-complete against
 sample/fixtures — unit-tested where feasible, but **no full-scale training and no
-notebook execution** (that is Phase 2, when GPU + full `statcast.db` are available).
+notebook execution** here (the full data is not in this environment).
 
-**Phase 2 (later):** real runs on the full data, filling the pre-written branched
-interpretations with actual numbers.
+**Phase 2 (later):** real runs on the full data — **on Sean's desktop, because that
+is where `statcast.db` lives** (data locality, not hardware, is the gate; nearly
+everything is CPU work). The orchestrator plans each run and hands Sean exact,
+copy-pasteable PowerShell steps; Sean runs them locally and pastes back the printed
+headline numbers; the orchestrator reviews against SPEC acceptance checks and then
+has the subagent fill real numbers + the chosen interpretation branch into the
+pre-written papers/notebooks/READMEs.
+
+## Phase-2 execution contract (locked)
+
+- Sean's machine: Windows desktop, PowerShell, conda env `statcast`, repo at
+  `~\pitch-sequencing-research`, data at `data/raw/statcast.db` and
+  `data/raw/statcast_*.parquet`, AMD GPU, free Colab available.
+- Every runnable step handed to Sean includes: (a) one line on what/why, (b) exact
+  command(s) prefixed `conda activate statcast; cd ~\pitch-sequencing-research`,
+  (c) rough expected runtime + what it outputs, (d) exactly what to paste back.
+- All heavy scripts must be **resumable and checkpointed**, write outputs to
+  `results/` or `artifacts/` (gitignored), and print headline numbers (log loss,
+  Δ_order, Δ_matchup, OPE value + CI, ESS, …) plus wall-clock and peak RAM — the
+  raw material for the SPEC §7 performance-vs-compute Pareto plot.
+- CPU is the default everywhere. WS1–WS5 and WS7 are CPU steps on the full 3.85M
+  pitches. Only WS6 is GPU-optional: ship both a CPU/local path and a
+  self-contained free-Colab (T4) path; note the ROCm/DirectML caveat for the AMD
+  GPU and recommend Colab as the simpler route. Only WS6's optional Transformer
+  variant is genuinely GPU-preferred.
+- Steps are kept small so Sean can run a few at a time and re-run failures cheaply.
+- **RUNBOOK.md** at repo root accumulates the exact Phase-2 steps per workstream,
+  in build order, as each workstream unit lands. It is the single place Sean works
+  from in Phase 2.
 
 ## Hard constraints
 
@@ -67,6 +94,11 @@ code+tests, then docs+notebook).
 | D8 | Subagents never commit; the orchestrator reviews then commits | single point of review |
 | D9 | PyTorch install deferred until WS6 | disk allowance; nothing earlier needs it |
 | D10 | `base_state` bit-encodes occupancy: `on_1b→1, on_2b→2, on_3b→4` (0–7) | matches SPEC §3.2 derivation |
+| D11 | Tabular **O** view = C + last-3 ordered pitch-token slots + consecutive-diff and run-length features; deep/Markov **O** = full ordered sequence via `sequences.py`. Same information set, representation differs by model family | SPEC §6 defines the information ladder, not the encoding |
+| D12 | Every workstream ships CLI entry points designed for Sean's Windows box: argparse, `pathlib` paths, `if __name__ == "__main__"` guards (Windows spawn), checkpoint/resume, outputs under `results/`/`artifacts/`, headline numbers + wall-clock + peak RAM printed at the end | Phase-2 execution contract |
+| D13 | Shared `pitchseq/runmeta.py` utility (psutil-based) records wall-clock, peak RSS, and run metadata to JSON next to each output — feeds the §7 Pareto plot | one implementation, used by every runnable step |
+| D14 | `results/` added to `.gitignore`; only tiny summary JSON/CSVs may be committed deliberately after review | keep heavy artifacts out of git |
+| D15 | WS0 gains a runnable full-data build step: `python -m pitchseq.build_table` (per-season checkpointed decision-table build, `data/processed/decision_table.parquet`) — first RUNBOOK step of Phase 2 | the decision table is the first thing Sean must build locally |
 
 ## Dispatch log
 

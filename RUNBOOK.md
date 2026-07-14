@@ -659,3 +659,149 @@ Get-Content results/ws4/frontier_real.csv
 - **Ambiguity.** `mean P(top>runner-up)` near 0.5 and high `ambiguous @80/@95` shares mean the
   recommendations are rarely confident distinctions (small q̂ gaps vs the posterior uncertainty)
   — an honest statement of how resolvable "best next pitch" is, not a bug.
+
+## Step WS5.1 — Tabular MDP / controlled Markov reward process (setup value, OPE-gated)
+
+**What / why.** WS5 (SPEC §12.6) is the **first *sequential* prescriptive rung** and the study's
+**transparent simulator**. It builds a small tabular MDP over the count and a sliver of ordered
+history — the **D43 state-space ladder**: `count` (≈ **C**, 12 cells), `count_prev` (≈ **L1**,
+×prev-family = 108) and `count_prev_trigger` (≈ **O-lite**, ×a velo-gap trigger flag = 216), each
+plus four absorbing terminals — estimates transitions/rewards from **train** counts
+(Dirichlet-smoothed `P̂`, two-level-shrunk `R̂`), plans with **undiscounted policy iteration**
+(γ=1: the PA return is the run-value change, SPEC §5), softens toward behavior via the SPEC §9
+`π_α` mixture, and evaluates the softened target **two independent ways** (decision D42): a
+**model-based** value from the estimated MDP (cross-checked by the Monte-Carlo simulator) and an
+**OPE** value on the held-out logged rows (`eval/ope` step-wise DR + FQE). It is the first rung
+that can value a **setup pitch** — an action whose payoff is the *state it creates for the next
+pitch* (the trigger), not its own reward. Its acceptance gate (D40/D43) is to **exceed the
+myopic ceiling WS4 measured (~0.003 run)**.
+
+> **Dependency (optional).** WS5 needs only the **decision table** (Step 1). Pass `--ws3-dir
+> results/ws3/` to reuse WS3's contextual behavior propensities `μ(a|s)` as the OPE denominator
+> (decision D33); **without it** WS5 fits the state-conditional empirical behavior from train
+> counts (documented fallback). WS5 trains nothing heavy and never re-implements OPE.
+
+Runs on the same held-out rows the other workstreams scored — validation (2024) + the locked test
+(2025) — with the MDP estimated on the train fold (2021–2023).
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+python workstreams/ws5_tabular_mdp/run_ws5.py --table data/processed/decision_table.parquet --ws3-dir results/ws3/ --out results/ws5/
+```
+
+The synthetic Phase-1 CI equivalents (no real data, no dependency — WS5 builds and caches the
+world itself) are `python workstreams/ws5_tabular_mdp/run_ws5.py --synth null --out results/ws5_null/`
+and `... --synth positive --out results/ws5_pos/`. `--alpha-t` / `--alpha-r` are the transition /
+reward smoothing strengths; `--threshold` (default 5.0) echoes the velo-gap trigger; `--n-boot`
+sets the step-wise-DR contribution-bootstrap replicates; `--force` rebuilds the cached synthetic
+table.
+
+**`--fqe-boot` (the FQE refit bootstrap — read this).** The FQE value's per-episode contribution
+is the initial-state value `V(s₀)`, and every PA starts in the *same* state (0-0, no previous
+pitch, trigger 0), so that contribution array is **constant** — a resampling bootstrap of it is
+structurally degenerate and would print a fake zero-width CI. The FQE CIs therefore come from a
+**refit cluster bootstrap**: each of `--fqe-boot` replicates resamples pitcher-game clusters of
+episodes and **refits FQE from scratch** on them, once per design × α — the same resample for
+every arm, so the design *gaps* are paired. Cost honesty for the real run: that is
+`fqe_boot × 3 designs × 5 α` tabular FQE refits over the ~1.5M held-out rows (the default 200 →
+3,000 refits). The refits use an exact vectorized tabular regressor (observed ~0.1–0.5 s/fit at
+synthetic scale; expect seconds/fit at 1.5M rows), so budget **up to a few hours** at the default
+— **lower `--fqe-boot` to 50–100 on the real table** if that is too slow (it changes only the CI
+resolution, never the point estimates), and any CI that is still structurally degenerate prints
+`n/a (constant contributions)`, never a fake interval.
+
+**Expected.** **Estimate: minutes to ~1–2 h** on a desktop CPU, dominated by `--fqe-boot` (see
+above). Tabular counting + policy iteration is near-instant (state spaces ≤ 220 states); the rest
+is the OPE pass — step-wise DR and the FQE point fits over the ~1.5M val+test rows for three
+designs × the α grid, plus the bootstraps. Writes, under `results/ws5/`:
+
+- `policy_<world>_<design>.parquet` — standard-schema `policy_prob` predictions per design (the
+  design → view map is count→C, count_prev→L1, count_prev_trigger→O; the exact design is in
+  `model_id`),
+- `ladder_<world>.csv` — the state-ladder overlay data (model-based, step-wise DR, FQE, ESS per
+  design × α),
+- `ws5_report_<world>.json` — the full report (gate, ladder, D42 cross-check, gaps vs the ceiling,
+  setup diagnostics, verdict),
+- `ws5_<world>.runmeta.json` — timing / peak RAM.
+
+It ends by printing a headline block like (numbers are the synthetic-**positive** demo; a real run
+has different values):
+
+```
+====================================================================================================
+ WS5 tabular MDP / controlled Markov reward process - setup value (OPE gate) - headline
+====================================================================================================
+ world          : positive   behavior mu: empirical:count_prev_trigger
+ rows           : train=...  eval=...  eval PAs=...
+ behavior recovery: PASS  (observed=...  IPS weights unit=True)  [gate; SPEC 0.3 / D37]
+
+ STATE SPACES + GREEDY-OPTIMISM EXHIBIT (in-sample greedy MB vs its own held-out FQE value):
+   design                 S reach feas/st MB(greedy) sim(greedy)   FQE@a=1  optimism
+   count                 16    12   ...      ...        ...         ...       ...
+   ...
+
+ D43 LADDER x D42 CROSS-CHECK (per alpha, the SAME softened pi_alpha in all three lenses):
+   design              alpha    MB   stepDR  stepDR CI        FQE   FQE CI (refit)   ESS%   D42
+   count                0.00   ...    ...    [...,...]        ...   [...,...]       100.0%  CONSISTENT
+   ...  (3 designs x 5 alphas)
+
+ SETUP GAP vs D40 MYOPIC CEILING (trigger-count; FQE CI = PAIRED REFIT cluster bootstrap):
+   myopic ceiling ~= +0.003 (D40); this gap must exceed it -- gate: FQE lower-95 > ceiling
+   AND stepDR gap > 0 AND model-based gap > 0 at the same alpha
+   alpha=1.00  FQE=... [...,...] lo95=...  | stepDR=... [...,...]  | MB=...
+   (refit bootstrap: 200 replicates, 3000 FQE refits, ...s total, ...s/fit)
+ ...
+ --- D43 SYNTHETIC VERDICT ---
+ verdict : SETUP_EXPLOITED / SETUP_INCONCLUSIVE   (SEQ_NEUTRAL_MDP on null)
+====================================================================================================
+```
+
+**Paste back.** Two things:
+
+1. the entire printed **headline block**, and
+2. the state-ladder overlay CSV:
+
+```powershell
+Get-Content results/ws5/ladder_real.csv
+```
+
+**Review checks (what I look at):**
+
+- **Behavior-recovery PASS is the gate (SPEC §0.3 / D37).** Same as WS4: the line after `rows`
+  must read `behavior recovery: PASS`. A `FAILED_GATE` stops the run before any target value.
+- **The state-ladder reading (this is the point).** Read the three designs as the C / L1 / O-lite
+  ladder in *state space*: `count` ≈ **C** (context/count only), `count_prev` ≈ **L1** (previous
+  pitch), `count_prev_trigger` ≈ **O-lite** (adds the leakage-safe velo-gap trigger flag,
+  `|velo_{t-1} − velo_{t-2}| ≥ 5`). The **trigger flag** is what makes a *setup* representable —
+  from a given previous family, choosing a current family whose velo band differs drives the next
+  state's trigger to 1, and a triggered state carries higher reward.
+- **The D40 ceiling comparison (the acceptance gate — a triple condition).** The headline prints
+  *"myopic ceiling ≈ +0.003 (D40); this gap must exceed it"*. `SETUP_EXPLOITED` fires only when, at
+  some α, **all three** hold: (1) the **refit-bootstrap FQE** trigger-count gap's one-sided 95%
+  lower bound clears +0.003 (the resolving held-out instrument, with a *real* CI); (2) the
+  **step-wise-DR** gap is *directionally positive* at that α (the importance-weighted lens agrees
+  in sign — its per-PA weight-product CI is too wide to resolve the ceiling, so it is a sign check,
+  not a bound); and (3) the **model-based** gap is positive (the estimated MDP agrees). On the
+  **null** world no α satisfies the triple gate → `SEQ_NEUTRAL_MDP`. On a positive world that
+  cannot clear at the tested scale, the verdict is the honest **`SETUP_INCONCLUSIVE`** (D39
+  first-class, exactly like WS4's `SEQ_INCONCLUSIVE_MYOPIC`): the headline then prints the
+  evidence story — directional agreement of the FQE/stepDR/model-based gaps, the setup
+  diagnostics, and the pointer to the constructed-world unit test that proves the machinery cashes
+  setups — and certification becomes a **data-scale question for the Phase-2 full-data run**.
+- **D42 agreement — like-for-like, per α (misspecification diagnostic).** The `D42` column
+  compares, per (design, α), the model-based value of the **same softened π_α** against its own
+  held-out step-wise-DR and FQE values, with the D24 rule on the **real** CIs (a pair diverges iff
+  the difference exceeds the wider 95% half-width). Expect `CONSISTENT` at α=0 on the coarse
+  design (the MDP's behavior value matches the held-out behavior value) and `DIVERGES` growing
+  with α and with design richness — the estimated MDP's in-sample optimism at thin cells. The
+  **greedy-optimism exhibit** above the ladder shows the same phenomenon at its most extreme
+  (in-sample greedy MB vs its own held-out FQE value; a clearly-labeled *exhibit*, not a verdict
+  input). Per D42 divergence is **reported, not silently averaged** — it is why the held-out FQE
+  gap, not the in-sample model value, is the gate.
+- **Support per (s,a) — tabular sparsity honesty.** `S`/`reach` show how many states exist vs are
+  actually visited; a large gap, or a low mean-feasible-actions-per-state, means the MDP is
+  estimated from thin cells. The richer designs (108 / 216 states) are sparser than `count` (16) —
+  the **estimation cost** that competes with the setup benefit and is the reason the held-out gap
+  is modest even when the in-sample model-based gap looks large. Read the ladder with this in mind.

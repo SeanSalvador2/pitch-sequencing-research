@@ -349,3 +349,186 @@ Review checks (what I look at):
   (the same world-specific artifact WS1 documents), and would win on real data where handedness
   matters. `O` beating all four references is the headline: the grammar is the best next-pitch
   selector on the board.
+
+---
+
+## Step WS3 — GBDT behavior + decomposed outcome stack (the centerpiece)
+
+**What / why.** WS3 (SPEC §12.3) is the project's centerpiece and its **heaviest CPU step so
+far**. It fits, per state view — and it is the first workstream to run **all five** views
+`C / U / L1 / O / OM` — a LightGBM **behavior** model `mu(a|s)` (next-pitch family) and a
+**decomposed outcome** stack (decision D32): stage A `P(outcome1|s,a)`, stage B
+`P(outcome2|s,a)` on in-play rows, stage C count-conditional node run-values, assembled into
+`E[R|s,a]`, plus a direct `E[R|s,a]` regressor cross-check. It answers the project's central
+question — *does ordered history (`O`) beat `U`/`L1` on **outcomes**, not just selection?* —
+via the SPEC §6 `Delta_order`/`Delta_matchup` ablation with clustered CIs on **three** targets
+(selection log loss, outcome1 log loss, run-value MAE), and it publishes the artifacts every
+prescriptive workstream consumes (decision D33): the counterfactual value grid `qhat(s,a)` for
+all 8 families and the behavior propensities `mu(a|s)`, saved with a `load_ws3_artifacts`
+loader that **WS4/WS5/WS7 import** (they never refit their own outcome/behavior model).
+
+Because it is heavy, WS3 is **split into stages with per-view checkpointing**: a completed
+`(view, stage)` writes its model file(s) and a small `.done` marker, and a re-run skips it
+(`--force` rebuilds). Run the three sub-steps below in order; within each, **run the views
+sequentially** if RAM is tight (`--views C`, then `--views U`, …) — each view checkpoints
+independently, so an interrupted run resumes cheaply.
+
+Hyperparameters are the predeclared LightGBM defaults plus an optional `--tune` 12-combo grid
+(`num_leaves × min_child_samples × learning_rate`, identical per view, selected by internal-
+holdout validation log loss — decision D34; the holdout is carved from the **train** seasons,
+never validation/test). `--threads N` raises LightGBM parallelism for speed (single-thread is
+the reproducible default). Everything is runmeta-logged for the SPEC §7 Pareto plot.
+
+Environment note: WS3 needs LightGBM (the `ml` extra). Step 0 already runs
+`pip install -e ".[ml]"`; if you see an `ImportError` pointing at the `ml` extra, run that
+first. Runs on train (2021–2023); scores on validation (2024) and the **locked test** (2025).
+
+### Step WS3.1 — Behavior stage (`mu(a|s)` per view)
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage behavior --views C U L1 O OM --tune --threads 4
+```
+
+Run views one at a time if memory is tight, e.g. `... --stage behavior --views O`. Drop
+`--tune` for a single-fit run on the predeclared defaults (markedly faster). The synthetic
+Phase-1 CI equivalents (no real data; each ~1–2 min) are
+`python workstreams/ws3_gbdt_stack/run_ws3.py --synth null --stage all --out results/ws3_null/`
+and `... --synth positive --stage all --out results/ws3_pos/`.
+
+**Expected.** **Estimate: order tens of minutes per view** on a desktop CPU for the full
+~2.3M-row train fold (≈100–200 features; the multiclass fit dominates; `--tune` adds a
+12-combo grid over a capped 250k-row subsample plus one full refit per view). It writes, under
+`results/ws3/`, per view: `behavior_<view>.joblib` (+ `.json` metadata with chosen params and
+top gain features), `pred_behavior_real_<view>.parquet` (standard-schema `action_probs` for
+val+test), and a `.behavior_real_<view>.done` marker. **Paste back** the last ~10 console lines
+(the per-view chosen params and elapsed/peak-RAM) and, for one view, the metadata sidecar:
+
+```powershell
+Get-Content results/ws3/behavior_O.json
+```
+
+Review checks: the fit should complete for every view and log its chosen params; the O-view
+selection log loss (reported in WS3.3) should beat the `pitcher_count_prev` reference.
+
+### Step WS3.2 — Outcome stage (decomposed `E[R|s,a]` per view)
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage outcome --views C U L1 O OM --tune --threads 4
+```
+
+**Expected.** **Estimate: order tens of minutes per view** (three LightGBM models per view —
+stage A over all rows, stage B over the ~15% in-play rows, and the direct regressor — plus the
+count-conditional node-value pass). Writes, per view: `outcome_<view>.joblib` (+ `.json` with
+the node-value lookups, chosen params, decomposed-vs-direct disagreement and top gain
+features), `pred_outcome_real_<view>.parquet` (standard-schema `outcome1`/`outcome2` probs +
+assembled `exp_reward`/`exp_reward_sd`), and a `.outcome_real_<view>.done` marker. **Paste
+back** the last ~10 console lines and, for one view, `Get-Content results/ws3/outcome_O.json`.
+
+Review checks: the **decomposed-vs-direct** mean-|difference| (in each `outcome_<view>.json`)
+should be small (well under the 0.03 flag on the |R|~0.05–0.3 reward scale); a flagged view
+means the event-tree decomposition and the direct regressor disagree materially — investigate
+the node-value lookups.
+
+### Step WS3.3 — Assemble + eval (q̂ grid, propensities, the central table)
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage assemble --views C U L1 O OM --threads 4
+python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage eval --views C U L1 O OM
+```
+
+(Or run the whole thing in one shot with `--stage all`; the completed WS3.1/WS3.2 views are
+skipped via their `.done` markers.) Lower `--n-boot` (default 200) if the clustered-bootstrap
+CIs are slow on the full val+test seasons — it changes only the CI widths.
+
+**Expected.** **Estimate: order 20–60 minutes.** `assemble` sweeps the 8-family q-grid and the
+propensities across five views on the ~1.5M val+test rows (predict-heavy, no training) and
+writes `qgrid_real_<view>.parquet` + `propensity_real_<view>.parquet` per view; `eval` scores
+everything through the shared harness (per-view selection/outcome log loss, run-value MAE, the
+three `Delta` blocks with clustered CIs) and writes `ws3_report_real.json` +
+`ws3_real.runmeta.json`. The falsification battery runs on the synthetic worlds only (skipped
+on real data). It ends by printing the **central table** headline (numbers below are the
+synthetic-**positive** demo — a real run has lower losses and a real, likely small,
+`Delta_order`):
+
+```
+==============================================================================
+ WS3 GBDT behavior + decomposed outcome stack - headline
+==============================================================================
+ world / stage  : positive / all
+ rows           : train=13,930  val=4,618  test=4,564
+ CENTRAL TABLE (validation; log loss / MAE, lower is better):
+   view   sel_ll  out1_ll  out2_ll   rv_mae
+   C      1.3586   1.5794   1.0339   0.0926
+   U      1.3521   1.5667   1.0392   0.0922
+   L1     1.3623   1.5871   1.0390   0.0927
+   O      1.3505   1.5417   1.0464   0.0921
+   OM     1.3529   1.5478   1.0755   0.0914
+   selection references: global_count_hand=1.7860 pitcher_count=1.3533 transition=1.6967 pitcher_count_prev=1.3736
+ Delta_order (min[U,L1]-O), clustered CI:
+   selection : +0.0016  CI[-0.0082, +0.0068]  not significantly positive: no evidence order helps beyond U/L1 (D21)
+   outcome1  : +0.0250  CI[+0.0189, +0.0303]  significantly positive: ordered history helps out-of-sample
+   run-value : +0.0001  CI[-0.0003, +0.0006]  (MAE; O lower error when >0)
+ Delta_matchup (O-OM), clustered CI:
+   selection : -0.0023  CI[-0.0082, +0.0041]
+   outcome1  : -0.0061  CI[-0.0119, -0.0009]
+   run-value : +0.0007  CI[+0.0002, +0.0012]
+ LOCKED TEST outcome1 Delta_order: +0.0369  CI[+0.0278, +0.0460]
+ decomposed vs direct (D32) mean|dec-direct|: C=0.0184 U=0.0199 L1=0.0192 O=0.0199 OM=0.0224  (all within tolerance)
+ top gain features (C view): strikes=4166, pitcher_pitch_count=3201, balls=2536, batter_tend_chase_rate=2533
+ --- D35 falsification (synthetic) ---
+   order_ablation (outcome1) losses: C=1.5647 U=1.5545 L1=1.5680 O=1.5225
+   delta_order=+0.0320  CI[+0.0258, +0.0397]  perm p=0.040  fired=True
+   mechanism ablation (loss increase): velo_diff=0.0163 family_slots=0.0075 location=0.0013 outcome_history=0.0004
+   mechanism top group: velo_diff
+   recovered whiff-lift=0.2894  planted(empirical)=0.3067  recovery ratio=0.943
+   (contrast: WS1 family-proxy attenuation ~0.03; floor 0.3)
+ D35 verdict    : MECHANISM_RECOVERED
+ elapsed (s)    : ...   peak mem (MB) : ...
+ outputs        : results/ws3/ws3_report_real.json
+==============================================================================
+```
+
+**Paste back.** Two things:
+
+1. the entire printed **headline block**, and
+2. the per-view decomposed-vs-direct + node-value summary from the report:
+
+```powershell
+python -c "import json;r=json.load(open('results/ws3/ws3_report_real.json'));print(json.dumps(r['disagreement'],indent=2))"
+```
+
+Review checks (what I look at):
+
+- **`Delta_order` read per D21, on each target.** `Delta_order = Loss(min[U,L1]) − Loss(O)` is
+  negatively biased under the null (min of two noisy losses), so the criterion is *significantly
+  positive* (clustered CI lower bound > 0), and a small **negative** value reads as *consistent
+  with no ordering effect*, never "order hurts". The **outcome1** `Delta_order` is the project's
+  central number: a CI above 0 is genuine out-of-sample *sequencing value* (finding #2); SPEC
+  §13's honest expectation is that it is **small** on real data (O barely beating L1). The
+  **selection** `Delta_order` is finding #1 (order predicting the next pitch) and is a separate
+  claim. Read the **locked-test** outcome1 `Delta_order` as the confirmation on unseen 2025 data.
+- **`Delta_matchup` (O vs OM).** WS3 is the first workstream that can fit `OM`, so this is the
+  first real read on longer-term batter–pitcher adaptation; expect it small.
+- **Decomposed-vs-direct agreement (D32).** The `disagreement` block should show small
+  mean-|difference| per view (unflagged); it is the internal check that the interpretable event-
+  tree assembly matches a black-box regressor.
+- **Feature-importance sanity.** In the `feature_gain` block, **count and pitcher features should
+  dominate `C`** (in the demo: `strikes`, `pitcher_pitch_count`, `balls`); the history views add
+  the slot/transition features on top.
+- **Calibration.** The run-value calibration slope (in each view's `exp_reward.calibration`)
+  should be near 1 and the intercept near 0.
+- **WS1 / WS2 cross-reference.** Compare WS3's per-view **selection** log loss to WS2's grammar
+  and WS1's tables (their own RUNBOOK steps): the GBDT should be at least competitive on
+  selection, and its decomposed outcome model is what earlier tabular workstreams could not
+  provide. On the **positive** synthetic world WS3 recovers the planted whiff-lift almost
+  directly (recovery ratio ≈ 0.9 in the demo) because the `O` view carries the ordered velo
+  transition — the **contrast exhibit** vs WS1's ~0.03 family-proxy attenuation (decision D35).

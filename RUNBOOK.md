@@ -532,3 +532,130 @@ Review checks (what I look at):
   provide. On the **positive** synthetic world WS3 recovers the planted whiff-lift almost
   directly (recovery ratio ≈ 0.9 in the demo) because the `O` view carries the ordered velo
   transition — the **contrast exhibit** vs WS1's ~0.03 family-proxy attenuation (decision D35).
+
+---
+
+## Step WS4.1 — Bayesian contextual bandit (myopic prescription, OPE-gated)
+
+**What / why.** WS4 (SPEC §12.5) is the **first prescriptive rung** (Phase B). It turns WS3's
+decomposed outcome model into an uncertainty-aware **"best next pitch" target policy** and
+evaluates it **offline** through the OPE gate (`eval/ope`) — prescription, never trusted
+without OPE (SPEC §0.3). It **consumes WS3's saved artifacts** and never re-fits an outcome or
+behavior model (decision D33): a Thompson target policy `π̃(a|s)` is built per state view from
+WS3's counterfactual q̂ grid and its (scaled) uncertainty (decision D36), softened toward the
+behavior policy across the SPEC §9 α grid (`π_α = (1−α)μ + α π̃`), and scored **strictly**
+through `eval/ope.evaluate_policy` (decision D37). The core exhibit is the **D38 prescriptive
+ablation**: the value of the policy built from the `C`, `L1` and `O` views — the `C → O` value
+gap is the *sequencing-prescription* evidence, isolated from the (count-driven) raw
+value-vs-behavior gain.
+
+> **Dependency (explicit).** WS4.1 requires the WS3 artifacts from **Step WS3** to already
+> exist under `results/ws3/` (the per-view `behavior_<view>.joblib` and `outcome_<view>.joblib`
+> the D33 `load_ws3_artifacts` loader reads). Run Step WS3.1–WS3.2 first (the behavior +
+> outcome stages; the `assemble`/`eval` stages are not required by WS4, only the fitted
+> `.joblib` models). WS4 trains nothing on real data.
+
+Runs on the same held-out rows WS3 scored — validation (2024) + the locked test (2025) — with
+the behavior μ and q̂ read from WS3's train-fold (2021–2023) models.
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+python workstreams/ws4_bandit/run_ws4.py --table data/processed/decision_table.parquet --ws3-dir results/ws3/ --out results/ws4/ --views C L1 O
+```
+
+The synthetic Phase-1 CI equivalents (no real data, no WS3 dependency — WS4 fits small WS3
+stacks itself and checkpoints them under `--out`) are
+`python workstreams/ws4_bandit/run_ws4.py --synth null --out results/ws4_null/` and
+`... --synth positive --out results/ws4_pos/`. Lower `--gap-boot` / `--n-boot` (defaults 400 /
+300) if the clustered bootstraps are slow — it changes only the CI widths. Add `--no-fqe` to
+skip the (verdict-excluded, D24) count-conditional FQE cross-check for a faster run.
+`--posterior-scale` (default 0.05) is the single Thompson-confidence knob (see the model
+docstring); `--n-samples` (default 1500) is the Monte-Carlo draw count.
+
+**Expected.** **Estimate: order 10–40 minutes** on a desktop CPU (it is an estimate — WS4
+**loads** WS3's models and does no training). The cost is the 8-family q̂/σ predict sweep and
+the Thompson Monte-Carlo over the ~1.5M val+test rows for three views, plus the OPE estimator
+bootstraps for five α per view and the clustered gap bootstraps; the optional FQE cross-check
+adds a handful of `HistGradientBoosting` fits over a coarse count state (`--no-fqe` removes
+them). Writes, under `results/ws4/`:
+
+- `policy_real_<view>.parquet` — standard-schema `policy_prob` predictions per view,
+- `frontier_real.csv` — the value-vs-α frontier overlay data (value, lower_95, ESS, support),
+- `ws4_report_real.json` — the full report (gate, per-view/per-α OPE table, `C→O`/`L1→C` gaps
+  with clustered CIs, deviation maps, ambiguity stats, verdict),
+- `ws4_real.runmeta.json` — timing / peak RAM.
+
+It ends by printing a headline block like (numbers are the synthetic-**positive** demo; a real
+run has different values and, at full-data scale, potentially a resolvable `C→O` gap):
+
+```
+==================================================================================
+ WS4 Bayesian contextual bandit - myopic prescription (OPE gate) - headline
+==================================================================================
+ world          : positive
+ rows           : train=...  eval(scored)=...
+ feasibility    : mean #feasible/row=...  empty-mask(no-rec)=...%  low-history=...%
+ behavior recovery: PASS  (observed=...  IPS weights unit=True)  [gate; SPEC 0.3 / D37]
+ behavior value V(mu) = ...   (alpha=0 baseline)
+
+ D38 PRESCRIPTIVE-ABLATION TABLE (per view, per alpha; common evaluator = O):
+   view alpha     value   lower95 d(vs beh)   ESS%    oos      verdict
+   C     0.00   ...       ...       ...      100.0%   ...  INCONCLUSIVE
+   ...  (L1 / O × 0.10 / 0.25 / 0.50 / 1.00)
+   (D39: INCONCLUSIVE and lower95<V(mu) are first-class honest results, not failures.)
+
+ SEQUENCING-PRESCRIPTION GAPS (clustered by pitcher-game; the O-vs-C isolation):
+   alpha=1.00  O-C = ...  CI[..,..]  lower95=..
+ ...
+ --- D38 SYNTHETIC VERDICT ---
+ prescriptive verdict : SEQ_INCONCLUSIVE_MYOPIC   (or SEQ_NEUTRAL_PRESCRIPTION on null)
+==================================================================================
+```
+
+**Paste back.** Two things:
+
+1. the entire printed **headline block**, and
+2. the frontier overlay CSV:
+
+```powershell
+Get-Content results/ws4/frontier_real.csv
+```
+
+**Review checks (what I look at):**
+
+- **Behavior-recovery PASS is the gate (SPEC §0.3 / D37).** The first line after `rows` must
+  read `behavior recovery: PASS`. If it prints **`FAILED_GATE`**, the OPE harness cannot even
+  recover the *observed* policy's value on this data — **stop and paste the FAILED_GATE block**;
+  no target value below it can be trusted. (`IPS weights unit=True` confirms `π_0 = μ` gave
+  exactly unit importance weights.)
+- **The prescriptive-ablation reading (this is the point).** The sequencing-prescription
+  evidence is the **`C → O` gap** in the "SEQUENCING-PRESCRIPTION GAPS" block, **not** the raw
+  value-vs-behavior column. `SEQ_EXPLOITED` is emitted **only** when the real-reward-anchored
+  `O − C` gap's one-sided 95% lower bound clears 0 at some α (the pipeline never fabricates it).
+  Read the `d(vs beh)` column separately: the bandit often beats (or trails) the *habit-based*
+  behavior policy for **count-driven** reasons that are **not** sequencing — the `C → O` gap is
+  what isolates sequencing (D38).
+- **D39 honest-negatives are results, not failures.** An `INCONCLUSIVE` per-α verdict (DM/SNIPS/
+  DR disagree), a `lower95` **below** `V(mu)`, or a `SEQ_INCONCLUSIVE_MYOPIC` / `SEQ_NEUTRAL_
+  PRESCRIPTION` overall verdict are **first-class outcomes with their own interpretation**, per
+  SPEC §9's closing rule: *"If estimators disagree materially, the verdict is `INCONCLUSIVE`,
+  not 'it works.'"* On the synthetic **positive** world the honest myopic verdict is expected to
+  be **`SEQ_INCONCLUSIVE_MYOPIC`**: the planted effect is a velo-transition *state*-value effect,
+  and a **myopic** policy can only exploit its small family-differential component (~0.003 run,
+  below the OPE noise floor at synthetic scale). The effect is **present** (WS3 recovered it) but
+  **not myopically prescriptive** — this is precisely the motivation for the *sequential*
+  workstreams **WS5** (tabular MDP — values a setup pitch) and **WS7** (offline RL). On real
+  data, whether the `C → O` gap resolves above 0 at full-data scale is the open question WS4
+  poses and WS5/WS7 answer.
+- **Support / ESS to eyeball.** `ESS%` must fall as α rises (100% at α=0, lower at α=1) — the
+  price of deviating from behavior; a collapse to a few % at moderate α means the target is far
+  outside behavior support (read its value with suspicion). `oos` (out-of-support fraction: mean
+  target mass on actions with μ < 1%) should stay small; a large value means the policy
+  recommends rarely-thrown actions the OPE cannot evaluate. The `empty-mask(no-rec)` fraction is
+  the share of low-history decisions the target leaves at the observed action (no
+  recommendation) — informational, higher early in a season.
+- **Ambiguity.** `mean P(top>runner-up)` near 0.5 and high `ambiguous @80/@95` shares mean the
+  recommendations are rarely confident distinctions (small q̂ gaps vs the posterior uncertainty)
+  — an honest statement of how resolvable "best next pitch" is, not a bug.

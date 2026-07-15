@@ -965,3 +965,166 @@ the saved artifacts.
   whiff lift on triggered rows, reported as a recovered-vs-planted ratio like WS3). At synthetic scale
   the aggregate outcome Δ_order may stay direction-only (`GRU_MECHANISM_DIRECTIONAL`) — an honest
   first-class verdict (mirrors WS4/WS5); certifying the magnitude is a full-data question.
+
+---
+
+## Step WS7 — Conservative offline RL + OPE + exploitability + the frontier (the CAPSTONE, SPEC §12.7 / §10)
+
+**What / why.** WS7 is the study's capstone and its **most honest** unit. It builds a **conservative
+fitted-Q-iteration** policy (decision D48) — a batch FQI over the decision-table feature views with a
+**behaviour-support pessimism penalty** — evaluates it through the **full SPEC §9 battery** (gates
+first, step-wise DR + refit-bootstrap FQE, the D24 agreement verdict), cross-checks it against WS5's
+tabular MDP, and caps the whole ladder with the SPEC §10 **predictability × exploitability frontier**
+(decision D49). It inherits every honesty lesson before it: the myopic ceiling (D40), the
+refit-bootstrap variance constraint (D44), first-class honest negatives (D39), and the OPE-before-policy
+gate (SPEC §0.3). It runs on the same held-out rows the rest of the study scored — validation (2024) +
+the locked test (2025), FQI fit on 2021–2023.
+
+The FQI runs on two state representations: the rich **O view** (`build_view`'s full ordered features +
+the current action, LightGBM function approximation) and a coarse **count state** (`balls×strikes`,
+exact tabular) — the C-analog comparison rung. The **O-vs-count value gap isolates sequencing** from
+count-driven gain (the WS4 `O−C` / WS5 trigger-count lesson at the RL level).
+
+> **Dependencies (explicit).** WS7 **requires the WS3 artifacts** from **Step WS3** (behaviour `μ(a|s)`
+> for C and O, and the O outcome stack `q̂` — decision D33; `load_ws3_artifacts` reads them from
+> `--ws3-dir`). It **optionally** consumes a **WS5 report** (`--ws5-report results/ws5/ws5_report_real.json`)
+> for the tabular-MDP cross-check; without it, the cross-check is skipped on real data (or computed
+> fresh on a synthetic world). Run **Step WS3** first (and ideally **Step WS5.1** for the cross-check).
+
+### Step WS7.1 — Gates + FQI + the §9 battery (the heavy step)
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+python workstreams/ws7_offline_rl/run_ws7.py --table data/processed/decision_table.parquet --ws3-dir results/ws3/ --ws5-report results/ws5/ws5_report_real.json --out results/ws7/ --fqe-boot 100
+```
+
+The synthetic Phase-1 CI equivalents (no real data, no `--ws3-dir` — WS7 fits small WS3 stacks itself
+and computes the WS5 cross-check fresh) are
+`python workstreams/ws7_offline_rl/run_ws7.py --synth null --out results/ws7_null/ --fqe-boot 40` and
+`... --synth positive --out results/ws7_pos/ --fqe-boot 40`. `--lam` / `--floor` set the pessimism
+penalty coefficient and the behaviour-support floor; `--n-iter` the FQI Bellman backups; `--beta` the
+exploitability disruption coefficient; `--n-boot` the step-wise-DR / exploitability contribution
+bootstrap replicates.
+
+**`--fqe-boot` (the FQE refit bootstrap — read WS5.1's note first).** Identical mechanism to WS5: the
+FQE per-episode contribution is the constant initial-state value, so its CI comes from a **refit
+cluster bootstrap** (resample pitcher-game clusters of episodes, refit FQE from scratch per
+`view × alpha`, the same resample for every arm so the gaps are **paired**). Cost for the real run:
+`fqe_boot × 2 views × |alpha grid|` tabular FQE refits over the ~1.5M held-out rows. Combined with the
+FQI itself — LightGBM refits `× n_iter` on the 3.85M train rows for the O view, plus 3 more O-view
+refits for the value-vs-λ pessimism exhibit — **WS7 is the longest CPU step after WS3.** Budget
+accordingly and **lower `--fqe-boot` to 50–100 on the full table** (it changes only CI resolution,
+never the point estimates); degenerate CIs still print `n/a (constant contributions)`, never a fake
+interval.
+
+**Expected. Estimate: order 1–3 h** on a desktop CPU, dominated by the O-view LightGBM FQI refits and
+the refit bootstrap. Tabular counting (the count rung, the FQE refits) is near-instant. Writes, under
+`results/ws7/`:
+
+- `policy_<world>_<view>.parquet` — standard-schema `policy_prob` predictions per view (view→state_view
+  map: O→O, count→C; the exact FQI view is in `model_id`),
+- `fqi_<world>_<view>.joblib` + `response_<world>.joblib` — the fitted FQI Q-models and the batter
+  response model (loader: `load_ws7_artifacts`),
+- `frontier_<world>.csv` + `frontier_<world>.png` — the study frontier table and **the final figure**,
+- `ws7_report_<world>.json` — the full report (gates, ladder, gaps, WS5 cross-check, exploitability,
+  B_seq, pessimism curve, verdict),
+- `ws7_<world>.runmeta.json` — timing / peak RAM.
+
+### Step WS7.2 — Exploitability + the frontier (fast, folded into WS7.1)
+
+The exploitability game (per-count equilibrium values by LP + each policy's exploitability), the
+`B_seq` predictability-in-bits, and the frontier assembly/figure are all computed in the **same run**
+as WS7.1 (they are seconds-to-minutes on top of the FQI + bootstrap). Nothing separate to launch — the
+headline below prints all of it. (If you re-run only the light read-outs, the FQI Q-models reload from
+`fqi_<world>_<view>.joblib`.)
+
+It ends by printing a headline block like (numbers are the synthetic-**positive** demo; a real run
+differs):
+
+```
+========================================================================================================
+ WS7 conservative offline RL + OPE + exploitability + frontier (CAPSTONE) - headline
+========================================================================================================
+ world          : positive   behavior mu: ws3:O
+ GATES (SPEC 0.3): behavior-recovery PASS (...)  |  logged-bandit PASS (...)
+ CONSERVATIVE FQI (decision D48; O=LightGBM ordered view, count=tabular comparison):
+   O      n_iter=... final_drift=... penalty_share=... pessimism_bites=... fit=...s
+   count  ...
+ SPEC 9 BATTERY per (view, alpha): value = refit-FQE, stepDR directional, ESS, TV:
+   ...  (2 views x alpha grid)
+ GAPS at alpha=1.00 (paired refit-FQE; ceiling=+0.0030):
+   FQI-O - behavior  (count-inclusive; NOT the basis): FQE=... lo95=... | stepDR=...
+   FQI-O - FQI-count (SEQUENCING ISOLATION; the D50 basis): FQE=... lo95=... | stepDR=...
+   D24 sequential agreement (stepDR vs FQE on FQI-O@1.00): CONSISTENT
+ WS5 CROSS-CHECK (...): trigger-count FQE gap=...  WS5 verdict=...  directional-positive=...
+ EXPLOITABILITY vs equilibrium (mean; eq value=...): behavior=... O@1=... count@1=...
+ PREDICTABILITY B_seq (bits): overall=... seq-eligible=...
+ PESSIMISM EXHIBIT (value vs lambda; ...): lambda=0.00 FQE=... TV=... ; lambda=... ...
+ THE FRONTIER (the study's final deliverable; SPEC 10):
+   policy_id         ope_val  lo95   bits  exploit    TV  params
+   behavior          ...
+   fqi_O@1           ...
+   fqi_count@1       ...
+   ws5_trigger       ...
+ --- D50 RL VERDICT ---
+ verdict : RL_EVIDENCE_DIRECTIONAL   (RL_NO_CLAIM on null; CERTIFIED/ABSENT/INCONCLUSIVE the other bins)
+========================================================================================================
+```
+
+**Paste back.** Two things:
+
+1. the entire printed **headline block**, and
+2. the frontier CSV (the final-figure data):
+
+```powershell
+Get-Content results/ws7/frontier_real.csv
+```
+
+**Review checks (what I look at):**
+
+- **The two gates are the gate (SPEC §0.3).** The `GATES` line must read **both** `behavior-recovery
+  PASS` **and** `logged-bandit PASS`. A `FAILED_GATE` stops the run before any policy value — OPE that
+  cannot recover a known value cannot be trusted to value a policy.
+- **The D50 verdict reading — the O-vs-count *isolation* is the basis, not the raw gain.** The headline
+  prints two gaps. The **raw `FQI-O − behavior`** gap is **count-inclusive** and explicitly *not* the
+  certification basis: the FQI policy beats the habit-based behaviour policy mostly by optimising the
+  *count*, which is real but **not sequencing** (the WS4/WS5 lesson). The **`FQI-O − FQI-count`
+  isolation** is the D50 basis — the RL analog of WS4's `O−C` and WS5's trigger-count gap, with the
+  **D40 myopic ceiling (~0.003)** as the bar. `RL_EVIDENCE_CERTIFIED` fires only when that isolation's
+  refit-FQE **lower-95 clears the ceiling**, its step-wise-DR agrees in sign, **and** the WS5
+  cross-check is directionally consistent. At synthetic scale the honest result is
+  **`RL_EVIDENCE_DIRECTIONAL`** (the isolation point is positive but its CI cannot clear the ceiling —
+  exactly WS5's `SETUP_INCONCLUSIVE` at the RL level, per D44); the **null** world is **`RL_NO_CLAIM`**
+  (the isolation is ~0/negative; any raw gain is count-driven). A material **D24** step-wise-DR/FQE
+  disagreement overrides everything to **`RL_INCONCLUSIVE`** — SPEC §9's closing rule verbatim: *"If
+  estimators disagree materially, the verdict is INCONCLUSIVE, not 'it works.'"*
+- **The frontier figure is THE final deliverable of the study.** `frontier_real.png` places every
+  policy — behaviour, the WS4 bandit, the WS5 MDP designs, the WS7 FQI policies at each α — as a
+  labelled point across the five SPEC §10 axes: OPE run value (with the one-sided 95% lower bound as a
+  whisker) × predictability-in-bits `B_seq` × exploitability × total-variation distance-from-behaviour ×
+  compute (`params`). Read it as the study's summary: what value is bought, at what predictability /
+  exploitability / deviation / compute cost. The `ope_value` / `ope_lower95` columns are the refit-FQE
+  numbers; `b_seq_bits` is the ordered-history bits the policy's *view* exploits (0 for count/behaviour,
+  the full `B_seq` for O).
+- **Exploitability is a cost, not a win.** Expect the **concentrated conservative policy to be *more*
+  exploitable than diffuse behaviour** (a fixed batter response can sit on a predictable pitcher). That
+  is the honest game-theoretic read-out — model-dependent by necessity (SPEC §10); the equilibrium
+  value and the per-policy exploitability are reported with bootstrapped CIs, and the frontier trades it
+  off against value.
+- **The pessimism exhibit — "conservatism is free honesty until it isn't."** The value-vs-λ curve shows
+  the FQI-O value as the support penalty rises: a modest λ costs little value while pulling the policy
+  back onto behaviour support (lower deviation, lower exploitability); too large a λ over-constrains it.
+  Read `penalty_share` / `pessimism_bites` alongside — on real data with WS3's *contextual* μ̂ the
+  penalty bites (a feasible family can be off-support in a specific count), unlike the coarse count
+  behaviour where feasibility (≥3%) already implies support.
+- **The WS5 cross-check (corroboration).** WS5's trigger-design trigger-count gap and WS7's O-vs-count
+  isolation should **agree in sign** on real data. It is required for `CERTIFIED` (not for
+  `DIRECTIONAL`, which rests on WS7's own estimators), and is honestly **noisy at small synthetic
+  scale** — read it as directional corroboration, not a second gate.
+- **FQI convergence honesty.** `final_drift` should be small and the `drift_per_iter` trace decreasing;
+  a growing trace would flag function-approximation divergence (surfaced, not hidden). The pessimism
+  penalty (CQL-lite) plus the short PA horizon keep it stable.
+
+---

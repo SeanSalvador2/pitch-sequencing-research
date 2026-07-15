@@ -33,17 +33,21 @@ each unit lands. This file grows; earlier steps do not change.
 
 ## Step 0 — Environment check
 
-**What / why.** Install the package (with the ML extra) into the `statcast` env and confirm
-the whole test suite is green before touching real data. If the suite is red, stop and paste
-the failure — nothing downstream can be trusted.
+**What / why.** Install the package (with the `ml` and `deep` extras) into the `statcast`
+env and confirm the whole test suite is green before touching real data. If the suite is
+red, stop and paste the failure — nothing downstream can be trusted.
 
 **Commands.**
 
 ```powershell
 conda activate statcast; cd ~\pitch-sequencing-research
-pip install -e ".[ml]"
+pip install -e ".[ml,deep]"
 python -m pytest tests/ -q
 ```
+
+> **Extras.** `ml` (LightGBM) is needed from WS3 on; `deep` (PyTorch) is **only needed
+> from WS6 on**. Installing both now means you never stop to re-install mid-run. If disk is
+> tight, you may instead install `.[ml]` here and add `.[deep]` right before WS6.
 
 **Expected.** The install is quick (seconds if already present). The test suite runs in a
 few minutes on CPU and ends with a line like `NNN passed in <secs>s`.
@@ -120,8 +124,23 @@ season should appear in `rows / season`.
 
 ---
 
-_Workstream steps (WS1 empirical-Bayes tables → WS7 offline RL) are appended below as each
-unit is built._
+## Suggested first session (and how to batch the rest)
+
+The workstream steps below run in **build order** (WS1 → WS7). You do not have to run them
+in one go — every step is checkpointed and resumable, so batch them to fit your time:
+
+- **First session (all fast):** Step 0 (environment) + Step 1 (build the decision table) +
+  **WS1** + **WS2**. The table build is the longest of these; WS1 and WS2 each fit in
+  minutes once the table exists.
+- **A session of its own for WS3** — it is the centerpiece and the heaviest CPU step (order
+  tens of minutes per view × five views). Its per-`(view, stage)` `.done` markers let you
+  run views one at a time across sittings. Everything prescriptive (WS4/WS5/WS7) depends on
+  its saved artifacts, so do WS3 before them.
+- **WS4 → WS5** next — they load WS3's models and are comparatively quick.
+- **WS6** when convenient — the long recurrent GRU fits have a **free Colab T4 alternative**
+  (Step WS6.2, ~1 hour) if the local CPU path is too slow.
+- **WS7** last — the capstone; the longest CPU step after WS3, and it produces the frontier
+  figure.
 
 ---
 
@@ -380,8 +399,9 @@ never validation/test). `--threads N` raises LightGBM parallelism for speed (sin
 the reproducible default). Everything is runmeta-logged for the SPEC §7 Pareto plot.
 
 Environment note: WS3 needs LightGBM (the `ml` extra). Step 0 already runs
-`pip install -e ".[ml]"`; if you see an `ImportError` pointing at the `ml` extra, run that
-first. Runs on train (2021–2023); scores on validation (2024) and the **locked test** (2025).
+`pip install -e ".[ml,deep]"`; if you see an `ImportError` pointing at the `ml` extra, run
+`pip install -e ".[ml]"` first. Runs on train (2021–2023); scores on validation (2024) and
+the **locked test** (2025).
 
 ### Step WS3.1 — Behavior stage (`mu(a|s)` per view)
 

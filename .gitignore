@@ -12,5 +12,6 @@ __pycache__/
 CLAUDE.md
 *.egg-info/
 .pytest_cache/
+results/
 models/
 artifacts/

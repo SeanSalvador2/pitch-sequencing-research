@@ -805,3 +805,163 @@ Get-Content results/ws5/ladder_real.csv
   estimated from thin cells. The richer designs (108 / 216 states) are sparser than `count` (16) —
   the **estimation cost** that competes with the setup benefit and is the reason the held-out gap
   is modest even when the in-sample model-based gap looks large. Read the ladder with this in mind.
+
+---
+
+## Step WS6 — Deep sequence: capacity-matched GRU ladder (SPEC §12.4)
+
+**What / why.** WS6 asks the representation-learning question: does a *learned* encoding of the
+ordered plate-appearance sequence beat the **engineered** tabular history (WS3) and the **explicit**
+variable-order grammar (WS2)? It realises the same five nested views C/U/L1/O/OM as
+**capacity-matched neural architectures** (decision D45): C is a static MLP on the context; U is
+mean-pooled token embeddings (order-invariant by construction); **L1 and O are the *same* GRU**, L1
+fed only the last history token and O the full ordered sequence (so any O-over-L1 gain is
+*information*, not capacity); OM adds a matchup-memory branch. Both targets are run — `selection`
+(next family) and `outcome1` (conditioned on the current action, D22). This is the study's **compute
+peak on the predictive side** (SPEC §7); the deltas are still scored **only** through the shared
+harness, and the SPEC §7 **Pareto row** (params / epochs / wall-clock per view) is printed for the
+performance-vs-compute plot.
+
+> **PyTorch is required for WS6 only** (decision D46). Install the `[deep]` extra:
+> `pip install -e ".[deep]"`. The code is device-agnostic (`--device auto` picks CUDA if present,
+> else CPU); everything else in the study is CPU-only and needs no torch.
+
+> **Dependency.** WS6 needs only the **decision table** (Step 1). It fits its own encoders and
+> refits nothing from other workstreams; the WS2/WS3 comparison is a **read-off** (paste their O-view
+> losses into the headline's comparison line — see the review checks).
+
+WS6 ships **two Phase-2 paths** (D46). Pick one:
+
+- **Step WS6.1 — LOCAL CPU** (below): the same code on Sean's desktop CPU. Honest and simple, but the
+  full O-view GRU over ~3.85M sequences is the slowest step in the study.
+- **Step WS6.2 — COLAB T4** (below): the self-contained `workstreams/ws6_deep_seq/colab_ws6.ipynb`
+  notebook on a free Colab T4 GPU — **~10–20× faster** for the recurrent fits and the recommended
+  route. The AMD desktop GPU is **not** recommended (see the ROCm/DirectML caveat in WS6.2).
+
+### Step WS6.1 — LOCAL CPU
+
+**Commands.**
+
+```powershell
+conda activate statcast; cd ~\pitch-sequencing-research
+pip install -e ".[deep]"
+# CALIBRATE FIRST: one view, one season subset, to time an epoch on your machine.
+python workstreams/ws6_deep_seq/run_ws6.py --table data/processed/decision_table.parquet `
+    --views O --targets selection --epochs 3 --device auto --out results/ws6_calib/
+# FULL LADDER (resumable; start it and let it run — checkpoints per view+target):
+python workstreams/ws6_deep_seq/run_ws6.py --table data/processed/decision_table.parquet `
+    --device auto --epochs 30 --out results/ws6/
+```
+
+The synthetic Phase-1 CI equivalents (no real data, WS6 builds the world itself) are
+`python workstreams/ws6_deep_seq/run_ws6.py --synth null --out results/ws6_null/ --epochs 30` and
+`... --synth positive --out results/ws6_pos/ --epochs 30`. Flags: `--views` / `--targets` subset the
+ladder; `--hidden 64 --embed 16 --max-len 15` are the compact D46 defaults; `--batch 512`;
+`--n-perm` is the token-order permutation refits (synthetic only — keep modest); `--force` ignores
+the `.done` checkpoints and refits.
+
+**Expected.** **Estimate: several hours** on a desktop CPU for the full five-view × two-target ladder
+over ~3.85M rows — the recurrent O/OM fits dominate (GRU hidden 64 over ~4M padded sequences × ~20
+early-stopped epochs). Calibrate with the one-view/3-epoch command first and multiply out; if it is
+too slow, **run `--views O` (and `--views O L1 U C`) and let the checkpoints resume** across sessions,
+or switch to **WS6.2 (Colab)**. Each `(view, target)` writes a checkpoint (`model_<world>_<target>_<view>.pt`
++ `.json` + a `.done` marker) and is skipped on re-run, so the job is fully resumable. Writes, under
+`results/ws6/`: per-view/target model checkpoints, `pred_<target>_<world>_<view>_{val,test}.parquet`
+(standard-schema predictions), `ws6_report_<world>.json`, `ws6_<world>.runmeta.json`.
+
+It ends by printing a headline block like (numbers are the synthetic-**null** demo; a real run
+differs):
+
+```
+============================================================================================
+ WS6 deep sequence: capacity-matched GRU ladder - headline
+============================================================================================
+ world          : null   device: cpu   embed=16 hidden=64 layers=1
+ rows           : train=...  val=...  test=...
+ CENTRAL TABLE (validation log loss, lower is better):
+   view    sel_ll   out1_ll
+   C       ...       ...
+   ...  (five views)
+   selection references: global_count_hand=...  pitcher_count=...  transition=...  pitcher_count_prev=...
+   WS2/WS3 comparison (fill from their reports in Phase 2): ...
+ Delta_order (min[U,L1]-O), clustered CI:
+   selection : ...  CI[...,...]   <D21 annotation>
+   outcome1  : ...  CI[...,...]   <D21 annotation>
+ Delta_matchup (O-OM), clustered CI: ...
+ LOCKED TEST outcome1 Delta_order: ...  CI[...,...]
+ PARETO ROW (SPEC 7: params / epochs / wall-clock per view; selection target):
+   view    params  epochs     sec   peakMB
+   ...  (five views; note L1 and O have IDENTICAL params - the capacity match)
+ --- D47 falsification (synthetic) ---
+   GRAMMAR: GRU_GRAMMAR_DETECTED  repeat-context L1-O delta=... CI[...,...]
+   OUTCOME: GRU_OUTCOME_QUIET  Delta_order=... CI[...,...]  perm p=... fired=False
+   D47 verdict: GRU_GRAMMAR_DETECTED+GRU_OUTCOME_QUIET  (pass=True)
+ --- motif rediscovery probe (P(same family 3rd) after [X,X] vs [Y,X]) ---
+   ...  (per-family suppression table; mean suppression > 0 when the motif is learned)
+ elapsed (s) : ...    peak mem (MB): ...
+============================================================================================
+```
+
+**Paste back.** Two things:
+
+1. the entire printed **headline block**, and
+2. the report JSON's Pareto rows for the compute plot:
+
+```powershell
+Get-Content results/ws6/ws6_report_real.json | Select-String -Pattern "n_params","seconds","peak_mem_mb"
+```
+
+### Step WS6.2 — COLAB T4 (recommended for the recurrent fits)
+
+**What / why.** The recurrent O/OM fits are the one place a GPU helps. `colab_ws6.ipynb` is a small,
+self-contained notebook that installs torch, brings in this repo, builds the sequences, trains the
+**O-view GRU on the T4 with the same `pitchseq`/WS6 code**, and prints the headline numbers to paste
+back — **~1 hour** end-to-end (vs several hours on CPU).
+
+**Commands (in Colab, not PowerShell).** Open `workstreams/ws6_deep_seq/colab_ws6.ipynb` at
+<https://colab.research.google.com> (Runtime → Change runtime type → **T4 GPU**). The notebook's
+cells: (a) `pip install torch` + clone the repo (fill in Sean's repo URL placeholder) **or** upload
+`decision_table.parquet` to Drive and mount; (b) build the decision table / sequences; (c) train the
+O-view GRU on GPU; (d) save artifacts + `runmeta` back to Drive; (e) print the headline to paste back.
+
+> **AMD GPU caveat (ROCm / DirectML).** Sean's desktop GPU is **AMD**. PyTorch's Windows wheels are
+> CPU/CUDA only — there is **no** stable Windows ROCm build, and `torch-directml` is an unofficial,
+> often-lagging backend. **Do not fight the AMD GPU**: use **WS6.1 (CPU)** for correctness or
+> **WS6.2 (free Colab T4)** for speed. This is the only GPU-relevant step in the study, and only its
+> *optional* Transformer demo is genuinely GPU-preferred.
+
+**Expected.** **~1 hour** on a T4 for the O-view GRU over the full data. Writes model + `runmeta` +
+the headline to your Drive folder.
+
+**Paste back.** The notebook's final printed headline cell (the O-view val/test log loss, the
+outcome1 Delta_order + CI, and the params / epochs / wall-clock Pareto line), plus the Drive path of
+the saved artifacts.
+
+**Review checks (what I look at):**
+
+- **Δ_order per D21 (the headline).** `Delta_order = Loss(min[U,L1]) − Loss(O)` on **outcome1** is the
+  finding-#2 test; read it with the D21 rule (negatively biased under the null, so the criterion is
+  "not significantly positive"; a small negative reads as *consistent with no ordering effect*, never
+  "order hurts"). The **locked-test** outcome1 Δ_order is the honest 2025 number. The **selection**
+  Δ_order is finding #1 (does prior order predict the next pitch).
+- **Does the learned representation beat the engineered features and the grammar? (the WS6 point.)**
+  Compare the **O-view** losses to: (a) the printed count **references**; (b) **WS3**'s GBDT-O losses
+  (`results/ws3/ws3_report_real.json`); (c) **WS2**'s grammar O-loss (selection). Paste those into the
+  headline's `WS2/WS3 comparison` line. If the GRU's O does **not** beat WS3's engineered O and WS2's
+  grammar, that is the honest, publishable finding (SPEC §13: order mostly doesn't add much
+  out-of-sample) — the learned representation did not extract signal the engineered features missed.
+- **The Pareto row (SPEC §7).** `params / epochs / wall-clock per view` vs the gain: WS6 is the compute
+  peak, so the question is whether the (usually small) Δ_order justifies orders-of-magnitude more
+  compute than WS1–WS3. **L1 and O print identical parameter counts** — the capacity match; any gap
+  between them is information, not size.
+- **Δ_matchup (O − OM).** Expect it **≤ 0** on the synthetic worlds (matchup overfit cost where no
+  matchup effect exists — the same M− story as WS3); on real data a positive Δ_matchup would be
+  genuine longer-horizon batter–pitcher adaptation.
+- **D47 synthetic gates (Phase-1 CI, re-run any time).** Null: `GRU_GRAMMAR_DETECTED` (the selection
+  GRU-O rediscovers the no-three-in-a-row grammar — the repeat-context L1-vs-O twin delta is
+  CI-positive — and the **motif probe** shows P(same family third) suppressed after `[X,X]`) **and**
+  `GRU_OUTCOME_QUIET` (outcome Δ_order not significantly positive, permutation does not fire).
+  Positive: the GRU-O **recovers** the planted `|velo_{t−1}−velo_{t−2}|` whiff mechanism (predicted
+  whiff lift on triggered rows, reported as a recovered-vs-planted ratio like WS3). At synthetic scale
+  the aggregate outcome Δ_order may stay direction-only (`GRU_MECHANISM_DIRECTIONAL`) — an honest
+  first-class verdict (mirrors WS4/WS5); certifying the magnitude is a full-data question.

@@ -23,6 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 ml = ["lightgbm>=4.0"]
+deep = ["torch>=2.0"]  # WS6 deep sequence models (GRU / compact Transformer demo); CPU or CUDA
 
 [tool.setuptools.packages.find]
 where = ["src"]

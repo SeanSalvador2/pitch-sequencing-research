@@ -111,10 +111,10 @@ def main() -> None:
         )
         print(
             f"\nFIRST-PITCH Delta_matchup (O-OM log loss, >0 means matchup memory helps "
-            f"where ONLY it can): {ci['point']:+.5f}  CI[{ci['ci95'][0]:+.5f}, {ci['ci95'][1]:+.5f}]"
+            f"where ONLY it can): {ci['point']:+.5f}  CI[{ci['lo']:+.5f}, {ci['hi']:+.5f}]"
         )
-        verdict = "CORROBORATED" if ci["ci95"][0] > 0 else (
-            "NOT CORROBORATED (CI includes 0)" if ci["ci95"][1] > 0 else "CONTRADICTED"
+        verdict = "CORROBORATED" if ci["lo"] > 0 else (
+            "NOT CORROBORATED (CI includes 0)" if ci["hi"] > 0 else "CONTRADICTED"
         )
         print(f"M+ first-pitch corroboration: {verdict}")
     else:

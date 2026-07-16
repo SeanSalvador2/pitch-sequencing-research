@@ -41,11 +41,11 @@ red, stop and paste the failure — nothing downstream can be trusted.
 
 ```powershell
 conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
-pip install -e ".[ml,deep]"
+pip install -e ".[ml,deep,dev]"
 python -m pytest tests/ -q
 ```
 
-> **Extras.** `ml` (LightGBM) is needed from WS3 on; `deep` (PyTorch) is **only needed
+> **Extras.** `dev` provides pytest (needed for this step's suite run); `ml` (LightGBM) is needed from WS3 on; `deep` (PyTorch) is **only needed
 > from WS6 on**. Installing both now means you never stop to re-install mid-run. If disk is
 > tight, you may instead install `.[ml]` here and add `.[deep]` right before WS6.
 
@@ -399,7 +399,7 @@ never validation/test). `--threads N` raises LightGBM parallelism for speed (sin
 the reproducible default). Everything is runmeta-logged for the SPEC §7 Pareto plot.
 
 Environment note: WS3 needs LightGBM (the `ml` extra). Step 0 already runs
-`pip install -e ".[ml,deep]"`; if you see an `ImportError` pointing at the `ml` extra, run
+`pip install -e ".[ml,deep,dev]"`; if you see an `ImportError` pointing at the `ml` extra, run
 `pip install -e ".[ml]"` first. Runs on train (2021–2023); scores on validation (2024) and
 the **locked test** (2025).
 

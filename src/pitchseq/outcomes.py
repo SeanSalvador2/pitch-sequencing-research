@@ -51,10 +51,16 @@ DESCRIPTION_TO_OUTCOME1: dict[str, str] = {
     "swinging_strike_blocked": "whiff",
     "missed_bunt": "whiff",
     "foul_tip": "whiff",
+    "swinging_pitchout": "whiff",
     # foul
     "foul": "foul",
     "foul_bunt": "foul",
     "bunt_foul_tip": "foul",
+    # Rare pitchout-swing codes (absent from the 20k sample; surfaced by the full
+    # 2021-2025 build): the batter swung at a pitchout. Classified by what the swing
+    # produced, same as any other pitch.
+    "foul_pitchout": "foul",
+    "pitchout_hit_into_play": "in_play",
     # hit by pitch
     "hit_by_pitch": "hbp",
     # in play

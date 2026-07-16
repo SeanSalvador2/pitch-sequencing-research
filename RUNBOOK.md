@@ -10,7 +10,7 @@ Each step below gives:
 
 1. **What / why** — one line on what the step produces and why.
 2. **Commands** — copy-paste PowerShell, always prefixed with
-   `conda activate statcast; cd ~\Documents\pitch-sequencing-research`. Multi-command lines are joined
+   `conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research`. Multi-command lines are joined
    with `;` (PowerShell's statement separator).
 3. **Expected** — rough runtime and what it prints/writes.
 4. **Paste back** — exactly what to copy into the review thread.
@@ -40,7 +40,7 @@ red, stop and paste the failure — nothing downstream can be trusted.
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 pip install -e ".[ml,deep]"
 python -m pytest tests/ -q
 ```
@@ -71,7 +71,7 @@ while `--resume` can still skip finished seasons after an interruption.
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python -m pitchseq.build_table --source data/raw/statcast.db --out data/processed/decision_table.parquet --resume
 ```
 
@@ -161,7 +161,7 @@ Runs on the train seasons (2021–2023), evaluates on validation (2024) via the 
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws1_eb_tables/run_ws1.py --table data/processed/decision_table.parquet --out results/ws1/ --views C U L1 O --target both
 ```
 
@@ -270,7 +270,7 @@ Runs on the train seasons (2021–2023), evaluates on validation (2024) via the 
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws2_bayes_markov/run_ws2.py --table data/processed/decision_table.parquet --out results/ws2/ --views C L1 O
 ```
 
@@ -408,7 +408,7 @@ the **locked test** (2025).
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage behavior --views C U L1 O OM --tune --threads 4
 ```
 
@@ -438,7 +438,7 @@ selection log loss (reported in WS3.3) should beat the `pitcher_count_prev` refe
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage outcome --views C U L1 O OM --tune --threads 4
 ```
 
@@ -460,7 +460,7 @@ the node-value lookups.
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage assemble --views C U L1 O OM --threads 4
 python workstreams/ws3_gbdt_stack/run_ws3.py --table data/processed/decision_table.parquet --out results/ws3/ --stage eval --views C U L1 O OM
 ```
@@ -581,7 +581,7 @@ the behavior μ and q̂ read from WS3's train-fold (2021–2023) models.
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws4_bandit/run_ws4.py --table data/processed/decision_table.parquet --ws3-dir results/ws3/ --out results/ws4/ --views C L1 O
 ```
 
@@ -707,7 +707,7 @@ Runs on the same held-out rows the other workstreams scored — validation (2024
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws5_tabular_mdp/run_ws5.py --table data/processed/decision_table.parquet --ws3-dir results/ws3/ --out results/ws5/
 ```
 
@@ -863,7 +863,7 @@ WS6 ships **two Phase-2 paths** (D46). Pick one:
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 pip install -e ".[deep]"
 # CALIBRATE FIRST: one view, one season subset, to time an epoch on your machine.
 python workstreams/ws6_deep_seq/run_ws6.py --table data/processed/decision_table.parquet `
@@ -1016,7 +1016,7 @@ count-driven gain (the WS4 `O−C` / WS5 trigger-count lesson at the RL level).
 **Commands.**
 
 ```powershell
-conda activate statcast; cd ~\Documents\pitch-sequencing-research
+conda activate statcast; cd ~\Documents\CodingProjects\pitch-sequencing-research
 python workstreams/ws7_offline_rl/run_ws7.py --table data/processed/decision_table.parquet --ws3-dir results/ws3/ --ws5-report results/ws5/ws5_report_real.json --out results/ws7/ --fqe-boot 100
 ```
 

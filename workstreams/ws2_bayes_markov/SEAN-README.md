@@ -6,6 +6,55 @@ only read one document about WS2, read this one first.
 
 ---
 
+## What we actually found (2021–2025)
+
+Here is the headline in plain words. We ran the grammar on five full seasons — about **3.57
+million** regular-season pitch decisions — training on 2021–2023 and scoring on 2024.
+
+**Real pitchers are sticky.** Every one of the top "rules" the grammar found is a *repeat* rule:
+after a pitch of a given family, that same family becomes **more** likely next, not less.
+Split-finger after split-finger jumps from 24% to 38%; slider after slider from 31% to 39%;
+changeup after changeup from 21% to 30%. This is the single cleanest descriptive finding on the
+whole selection side of the study — and it is the **exact opposite** of the "don't throw three in
+a row" habit we planted in our synthetic test world. Real major-league pitchers double and triple
+up more than the textbook expects.
+
+**Order beyond the last pitch doesn't pay — and the data said so itself.** The grammar fits a dial
+per depth for how much that depth is worth. Depth 1 (the previous pitch) earned a moderate dial
+(**17.9**) — worth using. But depths 2, 3, and 4 came back at **84.7, 113.0, 166.7** — climbing
+straight toward the "pool it away, it's worthless" ceiling. The model voted against depth all by
+itself, and more strongly the deeper it looked. The mean "effective order" landed at about **0.9** —
+under one pitch of real memory.
+
+**In fact, using the deeper history made the forecast slightly *worse*.** The ordered view O scored
+a touch worse than the last-pitch view L1 (the gap `delta_order_L1` was **−0.0056**, a clean
+measurement with no bias to correct). That is not "order hurts baseball" — it is *fragmentation*:
+chopping the data into depth-2/3/4 contexts spreads it too thin, so the deeper model overfits and
+generalizes worse. The honest reading is "one pitch of memory is all this grammar can bank."
+
+**A number that looks alarming but isn't: the "bits" came out negative.** `B_seq` — the extra
+next-pitch predictability the sequence supplies — was **−0.0221** overall. Negative bits *sound*
+like "the sequence makes the next pitch harder to guess," but that isn't what it means. It's the
+same depth-overfit in a different mirror: the ordered predictor, overfit past depth 1, scores below
+the plain context predictor on the realized pitch. The fingerprint gives it away — the bits are
+exactly zero on the first pitch (no history yet) and get steadily *more* negative the deeper into
+the at-bat you go, which is precisely how an overfit-with-depth artifact behaves. A clean,
+calibrated bits number will come from WS3's regularized models, not this raw grammar.
+
+**Why the automatic verdict says "GRAMMAR_NOT_DETECTED" — and why that's fine.** The detector was
+built around the synthetic habit, which required the ordered view to *beat* the last-pitch view. On
+real data it doesn't (that's the fragmentation above), so the switch flips to "not detected." But
+its other readouts are the real story: stickiness *is* detected (the repeat motifs), and when we
+shuffle the histories to destroy any real order, the machinery collapses exactly as it should. The
+label is about the synthetic-shaped deep grammar; it is not a claim that real selection is
+structureless.
+
+One thing has *not* changed: this is all still about *selection* — what gets thrown next. None of
+it says a sticky pitcher is easier to *hit*. That question (does the sequence change the *outcome*?)
+is WS3's, and the firewall between the two is the whole point of the ladder.
+
+---
+
 ## What WS2 is, and where it sits
 
 The whole project is a **ladder**. Each rung is a model that tries to answer one question:

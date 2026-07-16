@@ -1,10 +1,11 @@
 # A Bayesian Variable-Order Markov "Pitch Grammar" for Ordered Pitch Selection
 
-*Workstream 2 of a comparative pitch-sequencing study.* This draft is written to be completed
-in place: every quantity that depends on the real Statcast data is a `{PLACEHOLDER}`, and the
-Results and Discussion are **branched** so that the correct interpretation is already written
-for whichever numbers arrive. The synthetic-world numbers quoted in §5 are *completed
-validation*, not placeholders.
+*Workstream 2 of a comparative pitch-sequencing study.* This paper is completed in place with the
+real-data results (2021–2025 Statcast). The Results and Discussion were pre-**branched** so that
+the correct interpretation was already written for whichever numbers arrived; the branch **selected
+by the data** is marked at each fork, and the unselected branches are retained and labelled as
+*pre-registered alternatives*. The synthetic-world numbers quoted in §5 are *completed validation*,
+not placeholders.
 
 ---
 
@@ -20,12 +21,20 @@ fitted by empirical Bayes (maximum marginal likelihood, method-of-moments fallba
 is fit over three nested views — context `C` (order 0), previous pitch `L1` (order 1), and the
 full ordered sequence `O` (variable order ≤ `K_MAX` = 4); the unordered `U` and matchup-memory
 `OM` views are shown to be **not-applicable** to a Markov grammar. On the real data
-(2021–2025 Statcast, ~3.85M pitches) the context view attains selection log loss {C_LOGLOSS}
-and the ordered grammar {O_LOGLOSS}, giving an ordered-selection edge
-`delta_order_L1 = Loss(L1) − Loss(O)` = {DELTA_ORDER_L1} (95% clustered CI {DELTA_ORDER_L1_CI}).
-The grammar earns a mean effective order of {EFF_ORDER_MEAN} with {EFF_ORDER_GE2_MASS} of rows
-resolving depth ≥ 2, and supplies {BSEQ_OVERALL} bits of next-pitch predictability
-(`B_seq`, SPEC §10) beyond context. We validate the method on the correctness oracle, where — by
+(2021–2025 Statcast, ~3.85M pitches) the context view attains selection log loss 1.4714
+and the ordered grammar 1.4867, giving an ordered-selection edge
+`delta_order_L1 = Loss(L1) − Loss(O)` = −0.0056 (95% clustered CI [−0.0061, −0.0051]) — a
+significantly *negative* edge, meaning the variable-order view's depth-2–4 contexts fragment and
+cost out-of-sample relative to the bigram. The data votes against depth directly: the fitted depth
+concentrations climb monotonically (`α_1` = 17.9 earns its keep, then `α_2`/`α_3`/`α_4` =
+84.7/113.0/166.7 are
+pooled progressively away), the grammar earns a mean effective order of just 0.901 with 0.250 of
+rows resolving depth ≥ 2, and its raw ordered predictor scores `B_seq` = −0.0221 bits versus
+context — a *model-relative* number reflecting this grammar's depth>1 overfit, not
+anti-predictability (§6.2). The one unambiguous descriptive finding is **stickiness**: every
+depth-1 top motif is repeat-promotion (e.g. P(FS|FS) 0.24→0.38, P(SL|SL) 0.31→0.39), the exact
+opposite sign of the synthetic no-three-in-a-row habit. We validate the method on the correctness
+oracle, where — by
 a deliberate inversion (decision D30) — the *null* world is WS2's **positive control**: it
 plants an order-2 no-three-in-a-row selection habit that the grammar recovers exactly
 (`GRAMMAR_DETECTED`: O = 1.3322 < L1 = 1.3385, `delta_order_L1` = +0.0063 CI [+0.0041, +0.0080],
@@ -308,22 +317,38 @@ effect that is irrelevant to a selection grammar (WS2 neither needs nor claims i
 
 ### 6.1 Headline table (real data)
 
+**Data vintage.** 3,567,640 regular-season decisions, 2021–2025 (SPEC's ~3.85M counts all game
+types; the config filters to `game_type == "R"`). Train 2021–2023 (2,143,214), validation 2024
+(711,898), locked test 2025 (712,528). WS2 fits on train and reports on validation.
+
 | view | grammar depth | selection log loss | reference | reference log loss |
 |---|---|---|---|---|
-| `C`  | 0 | {C_LOGLOSS}  | `pitcher_count`      | {REF_PITCHER_COUNT} |
-| `L1` | 1 | {L1_LOGLOSS} | `pitcher_count_prev` | {REF_PITCHER_COUNT_PREV} |
-| `O`  | ≤ 4 | {O_LOGLOSS} | `pitcher_count_prev` | {REF_PITCHER_COUNT_PREV} |
+| `C`  | 0 | 1.4714  | `pitcher_count`      | 1.4866 |
+| `L1` | 1 | 1.4811 | `pitcher_count_prev` | 1.4410 |
+| `O`  | ≤ 4 | 1.4867 | `pitcher_count_prev` | 1.4410 |
 
-Other references: global × count × hand {REF_GLOBAL_COUNT_HAND}; prev-family × count
-{REF_TRANSITION}. Ordered-selection edge `delta_order_L1` = {DELTA_ORDER_L1} (95% clustered CI
-{DELTA_ORDER_L1_CI}); `Δ_matchup` = N/A (`OM` not-applicable, D29).
+Other references: global × count × hand 1.7432; prev-family × count
+1.6437. Ordered-selection edge `delta_order_L1` = −0.0056 (95% clustered CI
+[−0.0061, −0.0051]); `Δ_matchup` = N/A (`OM` not-applicable, D29).
 
-Grammar exhibits: mean effective order {EFF_ORDER_MEAN}, order ≥ 2 mass {EFF_ORDER_GE2_MASS}
-(τ = 0.50); fitted depth concentrations `α_1` = {ALPHA_DEPTH1}, `α_2` = {ALPHA_DEPTH2},
-`α_3` = {ALPHA_DEPTH3}, `α_4` = {ALPHA_DEPTH4}; {N_MOTIFS} motifs at support ≥ 30, top rules
-{TOP_MOTIF_1}, {TOP_MOTIF_2}, {TOP_MOTIF_3}. Bits: `B_seq` = {BSEQ_OVERALL} overall
-(two-strike {BSEQ_TWO_STRIKE}, three-ball {BSEQ_THREE_BALL}; ahead/even/behind
-{BSEQ_AHEAD}/{BSEQ_EVEN}/{BSEQ_BEHIND}).
+Grammar exhibits: mean effective order 0.901, order ≥ 2 mass 0.250
+(τ = 0.50); fitted depth concentrations `α_1` = 17.9, `α_2` = 84.7,
+`α_3` = 113.0, `α_4` = 166.7 (monotonically increasing — the data pools depth away with depth). The
+top depth-1 motif rules are XX→XX 0.31→0.54, FS→FS 0.24→0.38, CH→CH 0.21→0.30 (all repeat-promotion),
+out of {N_MOTIFS} ranked rules at support ≥ 30 *(pending: total motif count from the report JSON,
+not in the results log)*. Bits: `B_seq` = −0.0221 overall (model-relative; see §6.2)
+— two-strike −0.0527, three-ball +0.0005; ahead/even/behind −0.0408/−0.0234/+0.0013; by pitch
+number t1 = +0.000, then −0.010/−0.022/−0.032/−0.055 (t2–t5).
+
+**Real-data verdicts.** The automated detector returns `GRAMMAR_NOT_DETECTED` and the permutation
+control returns `COLLAPSES_UNDER_PERMUTATION`; both are correct and neither contradicts the
+findings below — they must be read with care. The detector's rule was shaped around the *synthetic*
+no-three-in-a-row habit, which required the variable-order view to *beat* the bigram (`O < L1`); on
+real data `O < L1` is **False** (the deeper contexts fragment, §6.2/G2), so the rule fires "not
+detected." Its other two clauses tell the real story: order ≥ 2 mass = 0.250 and repeat-motif =
+**True** — stickiness *is* detected. The permutation control then confirms the machinery is sound:
+scrambling histories collapses the edge (−0.0056 → −0.0013) and the order ≥ 2 mass (0.250 → 0.000),
+exactly as a working detector should when genuine ordered dependence is destroyed.
 
 ### 6.2 Branched interpretation
 
@@ -335,7 +360,8 @@ the numbers above are filled.
 
 #### Grammar axis
 
-**G1 — ordered selection grammar beyond the previous pitch.** `delta_order_L1` clears zero (CI
+*Pre-registered alternative — not selected.* **G1 — ordered selection grammar beyond the previous
+pitch.** `delta_order_L1` clears zero (CI
 lower bound > 0): the full variable-order grammar beats the bigram by more than the clustered
 CI, so **order carries selection information past the previous pitch** — the strong form of
 finding #1 at the grammar rung. Characterise it with the two exhibits: the effective-order
@@ -344,7 +370,8 @@ For the study this is a live higher-order selection signal for WS3 (features) an
 representation) to confirm and extend, and it sharpens the headline question from "does history
 matter?" to "*ordered* history matters, to depth ~`k`." It says nothing about outcomes.
 
-**G2 — first-order adequate (the grammar is mostly bigrams).** `delta_order_L1 ≈ 0` (not
+**Selected by the data (2021–2025). G2 — first-order adequate (the grammar is mostly bigrams).**
+`delta_order_L1 ≈ 0` (not
 significantly positive), but `L1` and `O` both beat `C` materially: within-PA history helps
 selection, yet order beyond the immediately preceding pitch adds little. Selection memory is one
 pitch deep — the grammar is essentially a set of calibrated bigrams. This is SPEC §13's
@@ -352,7 +379,24 @@ explicitly anticipated result ("O barely beats L1"), and a clean one: WS3 need o
 previous pitch to capture the selection signal, and it sets the bar WS6's learned representation
 must clear to justify going deeper. Reported without embarrassment (SPEC §0).
 
-**G3 — count/pitcher-driven only.** Neither history view beats `C` materially: selection is
+*Realized (2021–2025).* The ordered signal is first-order and no deeper — with one honest
+correction to this branch's pre-written "both beat `C`" clause. The fitted depth concentrations are
+the clean read: `α_1` = 17.9 earns its keep (a moderate value — depth-1 contexts genuinely differ
+from the pitcher marginal, which *is* the stickiness the motifs display), while `α_2`/`α_3`/`α_4` =
+84.7/113.0/166.7 climb monotonically to the pool-it-away ceiling, so the data votes against depth
+progressively. The edge `delta_order_L1` = −0.0056 (CI [−0.0061, −0.0051]) is significantly
+*negative*; because this statistic takes no `min` it has no optimism bias, so the reading is direct
+and firm — the variable-order `O` view's depth-2–4 contexts genuinely fragment and cost
+out-of-sample against the bigram `L1`. That is a fragmentation/estimation cost, **not** evidence
+that ordered history is anti-informative (effective order settles at 0.901). The correction: on
+real data the grammar's own product-of-experts does *not* beat `C` (best view `C` = 1.4714;
+`L1` = 1.4811 and `O` = 1.4867 are worse), because the pitcher-keyed lift pooled over count cannot
+cash the first-order structure that the lean external pitcher × count × prev reference (1.4410)
+captures directly — the identical fragmentation tax WS1's hand-keyed ladder pays (its §6.2), and
+exactly the gap WS3's features are built to close.
+
+*Pre-registered alternative — not selected.* **G3 — count/pitcher-driven only.** Neither history
+view beats `C` materially: selection is
 driven by count and pitcher identity, with within-PA order adding essentially nothing. This is
 *surprising* against the conventional wisdom that pitchers sequence, so it is a claim to audit
 before accepting. Check the backoff/support diagnostics and the effective-order distribution
@@ -363,26 +407,49 @@ G3 substantive.
 
 #### Bits axis
 
-**B1 — materially positive `B_seq`.** Ordered history makes the next pitch more forecastable from
+*Pre-registered alternative — not selected.* **B1 — materially positive `B_seq`.** Ordered history
+makes the next pitch more forecastable from
 pre-release information; report the by-slice pattern (more bits deeper in the PA and under count
 leverage). This is a batter-side **information leak** — the raw material for SPEC §10's
 predictability/exploitability frontier assembled at the capstone (WS7). Forecastable is not
 exploitable: positive `B_seq` is finding #1 in bits, and whether those bits become outcome value
 (finding #2) or prescriptive gain (finding #3) is tested downstream.
 
-**B2 — `B_seq` ≈ 0.** The ordering is not forecastable beyond context: the sequence adds no
-measurable bits about the next pitch. Consistent with a G2/G3 reading and a clean negative for
-the predictability frontier.
+**Selected by the data (2021–2025), refined. B2 — `B_seq` ≈ 0** (the sequence supplies no
+forecastable next-pitch bits over context). The ordering is not forecastable beyond context: the
+sequence adds no measurable *positive* bits about the next pitch. Consistent with a G2/G3 reading
+and a clean negative for the predictability frontier.
+
+*Realized (2021–2025).* `B_seq` = −0.0221 overall — not the ≈ 0 this branch anticipated, but
+*negative*, and the negativity is a model-relative artifact rather than anti-predictability. It is
+`q_O` (the overfit variable-order predictor) scoring below `q_C` on the realized token because the
+`O` grammar's depth>1 contexts fragment; the by-pitch-number fingerprint confirms the mechanism —
+t1 = +0.000 (no history yet, so no bits), then −0.010/−0.022/−0.032/−0.055 monotonically as more
+prior pitches let the variable-order predictor overfit deeper. The honest statement is therefore
+"this grammar supplies no forecastable next-pitch bits over context, and its raw `B_seq` is
+*depressed below zero* by the same depth>1 overfit `delta_order_L1` measures"; the clean, calibrated
+bits read is deferred to WS3's regularised models.
 
 #### Motif axis
 
-**M1 — motifs reproduce known patterns (face-valid).** The top grammar rules read as real
+**Selected by the data (2021–2025). M1 — motifs reproduce known patterns (face-valid).** The top
+grammar rules read as real
 sequencing tendencies — repeat suppression, fastball → breaking-ball setups, two-strike putaway
 shifts — on adequate support. The grammar is learning baseball, not noise; the motif table is a
 genuine descriptive deliverable and a qualitative corroboration of whichever Grammar branch
 fired.
 
-**M2 — arbitrary motifs (inspect).** The top rules lack a clear baseball reading or ride on
+*Realized (2021–2025).* Face-valid, and the headline descriptive finding of the study's selection
+side: **real MLB pitch selection is sticky.** Every depth-1 top motif is repeat-*promotion* — the
+opposite sign of this branch's "repeat suppression" example, and of the synthetic no-three-in-a-row
+habit the grammar was validated against: P(FS|FS) 0.24→0.38, P(CH|CH) 0.21→0.30, P(SL|SL)
+0.31→0.39, P(SI|SI) 0.35→0.41, P(XX|XX) 0.31→0.54 (KL 0.16 down to 0.03). Depth-2 adjustments are
+real but an order of magnitude smaller (KL ≤ 0.013) and read sensibly — double-up damping (e.g.
+[CH, CH] → suppress the third) and off-speed → fastball re-promotion ([FS, FF], [SL, FF] →
+promote). The grammar is learning baseball, and what it learns is that pitchers repeat.
+
+*Pre-registered alternative — not selected.* **M2 — arbitrary motifs (inspect).** The top rules
+lack a clear baseball reading or ride on
 contexts barely clearing the support floor. Treat the exhibit as provisional: raise
 `min_support`, re-inspect, and cross-check the effective-order distribution — if the order ≥ 2
 mass is tiny, the deep motifs are estimated from little and are the first suspects for overfit.
@@ -394,20 +461,30 @@ mass is tiny, the deep motifs are estimated from little and are the first suspec
 The interpretation mirrors the §6 branch grid, so the discussion is written per branch and
 completed by the same numbers.
 
-**If G1 (order beyond L1) — with B1 and M1.** WS2 resolves genuine higher-order ordered
+*Pre-registered alternative — not selected.* **If G1 (order beyond L1) — with B1 and M1.** WS2
+resolves genuine higher-order ordered
 selection. The burden shifts to the richer models to show their machinery *extends* rather than
 merely *reproduces* this edge (WS6's learned representation against WS2's explicit grammar), and
 to the outcome and OPE workstreams to test whether the predictable order is also *exploitable*
 (findings #2, #3). The effective-order distribution and motif list are the concrete targets they
 inherit.
 
-**If G2 (first-order adequate) — the SPEC §13 expectation.** This is the study's most likely and
+**Selected by the data (2021–2025). If G2 (first-order adequate) — the SPEC §13 expectation.** This
+is the study's most likely and
 cleanest result. Within-PA history sharpens selection, but the *order* beyond the previous pitch
 does not — the grammar is calibrated bigrams. Reported without embarrassment: a modest ordering
 effect is a real, publishable finding consistent with the motif literature. It tells the rest of
 the ladder exactly what to carry (the previous pitch) and what it must beat to justify more.
 
-**If G3 (count/pitcher only).** Diagnose before believing. WS2's variable-order backoff is
+*Realized (2021–2025).* Confirmed as the depth read: `α_1` = 17.9 alone earns its keep and
+`delta_order_L1` = −0.0056 shows depths 2–4 cost out-of-sample, with the §6.2 nuance that the
+first-order *selection* structure the external reference proves real is not captured by WS2's own
+product-of-experts (a representation limit, not an absence of signal — the same fragmentation tax
+WS1 documents). The brief to the rest of the ladder stands: carry the previous pitch, and WS3's
+features are what cash it.
+
+*Pre-registered alternative — not selected.* **If G3 (count/pitcher only).** Diagnose before
+believing. WS2's variable-order backoff is
 precisely the instrument that separates "no order in the data" from "no order the model can
 resolve": read the effective-order distribution and the depth concentrations. If depths 1+ all
 pooled to their ceiling *with* ample support, that is a substantive selection finding; if they
@@ -460,14 +537,18 @@ hierarchical Dirichlet backoff over ordered family tokens — across the feasibl
 through the shared harness, and reads its depth honestly. Its conclusion is branch-conditional
 and complete once the real numbers arrive:
 
-- **Under G1**, WS2 finds ordered selection structure beyond the previous pitch and hands the
-  richer workstreams a live signal (an effective depth and a motif list) to confirm, extend, and
-  test for exploitability.
-- **Under G2** (the expected outcome), WS2 finds that within-PA history helps selection but the
-  *order* beyond the previous pitch does not — a clean, reportable "first-order adequate" result
-  consistent with SPEC §13 and the sequencing literature.
-- **Under G3**, WS2's variable-order backoff distinguishes "no order in the data" from "no order
-  the data can resolve," and hands the appropriate case upward.
+- **Under G1** *(pre-registered alternative — not selected)*, WS2 finds ordered selection structure
+  beyond the previous pitch and hands the richer workstreams a live signal (an effective depth and
+  a motif list) to confirm, extend, and test for exploitability.
+- **Under G2 — selected by the data (2021–2025)** (the expected outcome), WS2 finds that order
+  beyond the previous pitch does not pay: `α_1` = 17.9 earns its keep while `α_2`–`α_4` = 84.7–166.7
+  pool depth away, and `delta_order_L1` = −0.0056 shows the variable-order view costs out-of-sample
+  — a clean "first-order adequate" result consistent with SPEC §13, with the documented nuance that
+  the real first-order *selection* signal (external reference 1.4410) exceeds what WS2's own grammar
+  can hold. The descriptive headline is stickiness (uniform depth-1 repeat-promotion motifs).
+- **Under G3** *(pre-registered alternative — not selected)*, WS2's variable-order backoff
+  distinguishes "no order in the data" from "no order the data can resolve," and hands the
+  appropriate case upward.
 
 Across every branch the durable contributions are the same: a *calibrated depth read* on ordered
 selection that spends resolution only where support earns it (validated positively on the

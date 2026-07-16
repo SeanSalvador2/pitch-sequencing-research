@@ -1,9 +1,10 @@
 # Empirical-Bayes Conditional Tables as a Transparent Baseline for Pitch Sequencing
 
-*Workstream 1 of a comparative pitch-sequencing study.* This draft is written to be completed
-in place: every quantity that depends on the real Statcast data is a `{PLACEHOLDER}`, and the
-Results and Discussion are **branched** so that the correct interpretation is already written
-for whichever numbers arrive.
+*Workstream 1 of a comparative pitch-sequencing study.* This paper is completed in place with the
+real-data results (2021–2025 Statcast). The Results and Discussion were pre-**branched** so that
+the correct interpretation was already written for whichever numbers arrived; the branch **selected
+by the data** is marked at each fork, and the unselected branches are retained and labelled as
+*pre-registered alternatives* for transparency.
 
 ---
 
@@ -16,12 +17,16 @@ previous pitch `L1`; full ordered priors `O`; matchup memory `OM`): a Dirichlet-
 **selection** table for the next-pitch family, and a normal partial-pooling **run-value** table
 for expected reward conditioned on the pitch thrown. Each level's shrinkage strength is fit by
 maximum marginal likelihood. On the real data (2021–2025 Statcast, $\sim$3.85M pitches), the
-context view attains selection log loss {C_LOGLOSS} and the fully ordered view {O_LOGLOSS},
-giving an ordered-refinement ablation $\Delta_{\text{order}}$ = {DELTA_ORDER} (95% clustered CI
-{DELTA_ORDER_CI}). The support exhibit shows distinct conditioning cells rising from
-{C_CELLS} (`C`) to {O_CELLS} (`O`), with the fraction of evaluation pitches in cells of
-fewer than 20 training examples climbing from {C_FRAC_LT20} to {O_FRAC_LT20}; matchup
-memory (`OM`) is shown to be table-infeasible. We validate the method on two synthetic worlds
+context view attains selection log loss 1.4714 and the fully ordered view 1.4787,
+giving an ordered-refinement ablation $\Delta_{\text{order}}$ = −0.0015 (95% clustered CI
+[−0.0017, −0.0013]), read under D21 as consistent with no table-visible ordering effect. The
+hierarchy's own history views do not beat the context view, yet an external pitcher × count ×
+prev-family reference (1.4410) beats every table view by ≈0.03–0.04 log loss: first-order
+selection structure is real and material, but the hand-keyed cell ladder fragments before it
+can express it. The support exhibit shows distinct conditioning cells rising from
+30,430 (`C`) to 212,434 (`O`) — and 320,487 for the unordered `U` view — with the fraction
+of evaluation pitches in cells of fewer than 20 training examples climbing from 0.072 to 0.348;
+matchup memory (`OM`) is shown to be table-infeasible. We validate the method on two synthetic worlds
 with known ground truth: on a null world the fitted history concentration diverges and
 $\Delta_{\text{order}} = 0$ exactly; on a positive world with a planted ordered velocity-transition
 effect the ordered table recovers the effect's sign at $\sim$3% of its planted magnitude — a
@@ -273,19 +278,31 @@ the ordered last two).
 
 ### 6.1 Headline table (real data)
 
+**Data vintage.** 3,567,640 regular-season decisions, 2021–2025 (SPEC's $\sim$3.85M counts all
+game types; the config filters to `game_type == "R"`). Train 2021–2023 (2,143,214), validation
+2024 (711,898), locked test 2025 (712,528). WS1 fits on train and reports on validation.
+
 | view | selection log loss | run-value MAE | run-value RMSE | reference | reference log loss |
 |---|---|---|---|---|---|
-| `C`  | {C_LOGLOSS}  | {C_MAE}  | {C_RMSE}  | `pitcher_count`      | {REF_PITCHER_COUNT} |
-| `U`  | {U_LOGLOSS}  | {U_MAE}  | {U_RMSE}  | `pitcher_count_prev` | {REF_PITCHER_COUNT_PREV} |
-| `L1` | {L1_LOGLOSS} | {L1_MAE} | {L1_RMSE} | `pitcher_count_prev` | {REF_PITCHER_COUNT_PREV} |
-| `O`  | {O_LOGLOSS}  | {O_MAE}  | {O_RMSE}  | `pitcher_count_prev` | {REF_PITCHER_COUNT_PREV} |
+| `C`  | 1.4714  | 0.1200  | 0.2234  | `pitcher_count`      | 1.4866 |
+| `U`  | 1.4785  | 0.1200  | 0.2234  | `pitcher_count_prev` | 1.4410 |
+| `L1` | 1.4772 | 0.1201 | 0.2234 | `pitcher_count_prev` | 1.4410 |
+| `O`  | 1.4787  | 0.1200  | 0.2234  | `pitcher_count_prev` | 1.4410 |
 
-$\Delta_{\text{order}}$ = {DELTA_ORDER} (95% clustered CI {DELTA_ORDER_CI}); $\Delta_{\text{matchup}}$
-= N/A (`OM` infeasible).
+$\Delta_{\text{order}}$ = −0.0015 (95% clustered CI [−0.0017, −0.0013]); $\Delta_{\text{matchup}}$
+= N/A (`OM` infeasible). Other references: `global_count_hand` = 1.7432, `transition` = 1.6437.
 
-Support: distinct cells {C_CELLS} (`C`) → {L1_CELLS} (`L1`) → {O_CELLS} (`O`) → {U_CELLS} (`U`);
-fraction of evaluation pitches in cells with $n < 20$ rising from {C_FRAC_LT20} (`C`) to
-{L1_FRAC_LT20}, {O_FRAC_LT20}, {U_FRAC_LT20}.
+Support: distinct cells 30,430 (`C`) → 94,992 (`L1`) → 212,434 (`O`) → 320,487 (`U`);
+fraction of evaluation pitches in cells with $n < 20$ rising from 0.072 (`C`) to
+0.222, 0.348, 0.332 (`L1`/`O`/`U`).
+
+**Fitted concentrations (the "what did the data decide" exhibit).** Selection: global level 1,
+count × hand $\alpha = 27.7$, **pitcher $\alpha = 2.35$** (pitchers are extremely distinct —
+almost no pooling), history levels $\alpha_{L1} = 128.3$, $\alpha_O = 73.4$, $\alpha_U = 72.2$
+(the within-PA history levels are shrunk hard toward the pitcher parent). Run value: **$\kappa$
+pegged at the 200 ceiling on every non-global level** — the fitter pools the cell reward means as
+hard as it is allowed to, the honest statement that cell-level run values are noise-dominated and
+EB run-value tables carry almost no cell-level signal on real data.
 
 ### 6.2 Branched interpretation
 
@@ -297,25 +314,41 @@ to stand alone once the numbers above are filled.
 
 #### Selection axis
 
-**S1 — history views clearly beat `C`.** The best history view lowers next-pitch log loss below
-`C` by more than the clustered CI: **ordered selection structure is present** (finding #1). Prior
-pitches genuinely help predict what is thrown next — the expected real-data result, since pitchers
-do sequence their selection. For the study this means the selection channel is live and worth the
-richer models: WS2's variable-order grammar and WS3's behavior model should extend the edge with
-calibrated higher-order dependence. It says nothing yet about *outcomes* (finding #2): a
-predictable pitcher is not necessarily an exploitable one.
+*Pre-registered alternative — not selected.* **S1 — history views clearly beat `C`.** The best
+history view lowers next-pitch log loss below `C` by more than the clustered CI: **ordered
+selection structure is present** (finding #1). Prior pitches genuinely help predict what is thrown
+next — the expected real-data result, since pitchers do sequence their selection. For the study
+this means the selection channel is live and worth the richer models: WS2's variable-order grammar
+and WS3's behavior model should extend the edge with calibrated higher-order dependence. It says
+nothing yet about *outcomes* (finding #2): a predictable pitcher is not necessarily an exploitable
+one.
 
-**S2 — history barely beats `C` (flat beyond count/pitcher).** Within-PA history does not sharpen
-next-pitch prediction beyond context, pitcher, and count. For a flat table this is unsurprising and
-often correct: the higher-order selection signal is below what naive cells can resolve, so empirical
-Bayes pools it away (as it provably does on the null world). This is *not* evidence that pitchers do
-not sequence — it is evidence that a lookup table cannot see it — and the proper test of whether a
-better model can is exactly WS2/WS3. If they too land here, the modest-selection-structure reading of
-the sequencing literature is corroborated.
+**Selected by the data (2021–2025). S2 — history barely beats `C` (flat beyond count/pitcher).**
+Within-PA history does not sharpen next-pitch prediction beyond context, pitcher, and count. For a
+flat table this is unsurprising and often correct: the higher-order selection signal is below what
+naive cells can resolve, so empirical Bayes pools it away (as it provably does on the null world).
+This is *not* evidence that pitchers do not sequence — it is evidence that a lookup table cannot
+see it — and the proper test of whether a better model can is exactly WS2/WS3. If they too land
+here, the modest-selection-structure reading of the sequencing literature is corroborated.
+
+*Realized (2021–2025).* Within the D25 hierarchy the three history views (`U` = 1.4785,
+`L1` = 1.4772, `O` = 1.4787) do **not** beat WS1-`C` (1.4714): adding within-PA history to the
+hand-keyed cell ladder does not sharpen the forecast. But the reference nuance is a first-class
+finding, and it says the failure is one of *representation*, not of baseball. The external
+pitcher × count × prev-family reference (1.4410) beats WS1-`C` by ≈0.030 log loss and beats the
+`pitcher_count` reference (1.4866) by 0.046 — so first-order selection structure is unambiguously
+real and material. What the D25 ladder cannot do is *express* it: keying on
+`(balls, strikes, stand, p_throws, pitcher, prev)` shatters support faster than the lean
+prev-keyed reference, so the hierarchy cannot reach the hand-marginalized projection the reference
+computes directly. This is a fragmentation tax — the same one WS2's grammar pays, and exactly the
+gap WS3's features are built to close. One synthetic-world prediction is confirmed on the way past:
+WS1-`C` beats `pitcher_count` (1.4714 vs 1.4866), reversing the §5 handedness artifact precisely
+as the docs anticipated — on real data `stand`/`p_throws` carry signal.
 
 #### Δ_order axis (read under D21)
 
-**R1 — $\Delta_{\text{order}}$ significantly positive (CI lower bound > 0).** The fully ordered view
+*Pre-registered alternative — not selected.* **R1 — $\Delta_{\text{order}}$ significantly positive
+(CI lower bound > 0).** The fully ordered view
 beats the better of `U`/`L1` by more than the clustered CI: a **table-visible ordered dependence**.
 This is the strong claim and must survive two checks before it is believed: (i) the support exhibit
 (§6.1) — if `O`'s edge rides on cells with $n < 20$, it is likely overfitting thin history keys; and
@@ -324,7 +357,8 @@ appear only in aggregate. If it survives both, WS1 has found genuine ordered str
 table level, and WS2/WS3 should confirm and sharpen it — the first real rung of evidence that *order*
 carries signal.
 
-**R2 — $\Delta_{\text{order}} \approx 0$ or small negative (consistent with no ordering effect).**
+**Selected by the data (2021–2025). R2 — $\Delta_{\text{order}} \approx 0$ or small negative
+(consistent with no ordering effect).**
 Under D21 this reads as *consistent with no table-visible ordering effect*, and — crucially — **not**
 as proof that order is absent. Two reasons withhold the stronger claim. First, $\min[U, L1]$ is
 optimistically biased, so a small negative is the bias, not a cost of order. Second, and measured: a
@@ -335,7 +369,17 @@ modest ordered *outcome* effect that only a feature-based (WS3) or learned (WS6)
 This is the expected, honest WS1 result, and it is precisely the argument for continuing up the
 ladder: any later claim of an ordering effect must clear this bar and explain why the table missed it.
 
-**R3 — $\Delta_{\text{order}}$ clearly negative, beyond the D21 bias scale.** For WS1's pooling
+*Realized (2021–2025).* $\Delta_{\text{order}}$ = −0.0015 (CI [−0.0017, −0.0013]) — a small
+negative, read directly as R2: no table-visible ordering effect, the negative being the
+$\min[U, L1]$ optimism rather than a cost of order. The run-value MAE is flat at 0.1200 across all
+four views, and the fitted concentrations (§6.1) say why the run-value channel is mute: the history
+levels pool hard ($\alpha$ 72–128) and $\kappa$ is pegged at its 200 ceiling on every non-global
+level, so the cell reward tables carry essentially no cell-level signal for order to move. WS3's
+feature-based ablation (which *can* split on pitch physics) is where any real ordered outcome effect
+must show up, exactly as the mechanism-blindness ceiling below predicts.
+
+*Pre-registered alternative — not selected.* **R3 — $\Delta_{\text{order}}$ clearly negative,
+beyond the D21 bias scale.** For WS1's pooling
 tables — whose null $\Delta_{\text{order}}$ is exactly 0, so there is no optimism bias to blame — a
 clearly negative value is **diagnostic of over-fragmentation**: the `O` key has splintered support so
 badly that its predictions are noisier than `U`/`L1` even after shrinkage. Diagnose it directly with
@@ -351,22 +395,30 @@ might still matter, but it cannot be seen by counting cells this fine.
 The interpretation of WS1 mirrors the branch grid of §6, so the discussion is written per branch and
 completed by the same numbers.
 
-**If S1 / R1 (structure and order both visible).** WS1 already resolves ordered structure at the
+*Pre-registered alternative — not selected.* **If S1 / R1 (structure and order both visible).** WS1
+already resolves ordered structure at the
 table level. The burden then shifts to the richer models to show that their added machinery *extends*
 rather than merely *reproduces* this edge, and to the outcome and OPE workstreams to test whether the
 predictable order is also exploitable (findings #2, #3). The support exhibit remains the guardrail:
 any ordered edge concentrated in thin cells is provisional.
 
-**If S1 / R2 or S2 / R2 (selection maybe, order not, from a table).** This is the study's most likely
+**Selected by the data (2021–2025): S2 / R2. If S1 / R2 or S2 / R2 (selection maybe, order not, from
+a table).** This is the study's most likely
 result and its cleanest one. It is reported without embarrassment (SPEC §0): a modest or null ordering
 effect is a real, publishable finding, consistent with the sequencing literature. The **measured
 caveat** is what keeps it honest: on the positive synthetic world the ordered table recovered only
 $\approx 0.03$ of a genuine planted effect, because a table keyed on pitch *names* is partially blind
 to a mechanism keyed on pitch *physics*. A near-zero table $\Delta_{\text{order}}$ therefore bounds,
 but does not eliminate, an ordered outcome effect — it establishes the level a feature model (WS3) or
-learned representation (WS6) must exceed, and explains in advance why they might.
+learned representation (WS6) must exceed, and explains in advance why they might. The realized result
+sharpens this: the near-zero is on the S2 side (WS1's history views do not beat `C`), yet the
+pitcher × count × prev reference beating every view by ≈0.03–0.04 proves the first-order *selection*
+signal is genuinely there — so WS1's honest verdict is "a real effect the tabular representation
+cannot hold," the tightest possible statement of the support problem and the exact brief handed to
+WS2 (a smarter grammar) and WS3 (physics as features).
 
-**If R3 (over-fragmentation).** The result is about estimation, not baseball, and it is the sharpest
+*Pre-registered alternative — not selected.* **If R3 (over-fragmentation).** The result is about
+estimation, not baseball, and it is the sharpest
 possible motivation for WS2: fixed, shallow, count-then-count tables cannot allocate resolution to
 where support exists, and a variable-order backoff can. WS1 has then done its job by failing
 informatively.
@@ -406,14 +458,18 @@ WS1 fits the simplest honest model of pitch sequencing — empirical-Bayes–shr
 across five nested state views, scores them through the shared harness, and exhibits the support limits
 of the tabular approach. Its conclusion is branch-conditional and complete once the real numbers arrive:
 
-- **Under S1 / R1**, WS1 finds ordered selection structure and a table-visible ordered refinement, and
-  hands the richer workstreams a live signal to extend and an outcome/OPE question to test.
-- **Under S2 / R2** (the expected outcome), WS1 finds that a flat table does not resolve ordered
-  structure beyond context and the previous pitch — a clean, reportable null — while its own
-  synthetic-world validation shows that such a null *bounds* rather than *refutes* a real ordered
-  effect, at a measured $\sim$3% recovery ceiling.
-- **Under R3**, WS1 diagnoses over-fragmentation and thereby states the case for variable-order
-  backoff directly.
+- **Under S1 / R1** *(pre-registered alternative — not selected)*, WS1 finds ordered selection
+  structure and a table-visible ordered refinement, and hands the richer workstreams a live signal
+  to extend and an outcome/OPE question to test.
+- **Under S2 / R2 — selected by the data (2021–2025)** (the expected outcome), WS1 finds that a flat
+  table does not resolve ordered structure beyond context and the previous pitch (history views
+  1.4772–1.4787 vs `C` 1.4714; $\Delta_{\text{order}}$ = −0.0015) — a clean, reportable null — while
+  the pitcher × count × prev reference (1.4410) beating every view proves the first-order selection
+  signal is *real* and only the tabular representation cannot hold it, and WS1's own synthetic-world
+  validation shows that a null $\Delta_{\text{order}}$ *bounds* rather than *refutes* a real ordered
+  outcome effect, at a measured $\sim$3% recovery ceiling.
+- **Under R3** *(pre-registered alternative — not selected)*, WS1 diagnoses over-fragmentation and
+  thereby states the case for variable-order backoff directly.
 
 In every case the durable contribution is the support exhibit: naive conditioning exhausts its support
 before it exhausts the questions, which is the standing reason the rigor ladder does not stop at a

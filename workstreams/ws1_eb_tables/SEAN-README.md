@@ -6,6 +6,52 @@ only read one document about WS1, read this one first.
 
 ---
 
+## What we actually found (2021–2025)
+
+Here is the headline in plain words, before any of the machinery below. We ran WS1 on five full
+seasons — about **3.57 million** regular-season pitch decisions — training on 2021–2023 and scoring
+on 2024.
+
+**The lookup table could not make history pay.** Adding within-at-bat history to the table's key
+did not sharpen the next-pitch guess at all. Context-only (**C**) scored a log loss of **1.4714**,
+and the history views landed a hair *worse* (last-pitch **L1 = 1.4772**, ordered **O = 1.4787**).
+So on WS1's own terms, history didn't help.
+
+**But — and this is the real finding — history absolutely does matter; the table just can't hold
+it.** A quick side-baseline keyed on "this pitcher, this count, and the *one* previous pitch"
+scored **1.4410** — beating every WS1 view by a comfortable margin (about 0.03–0.04 log loss), and
+beating the no-history version of the same baseline by **0.046**. That gap is proof that the
+previous pitch carries real, material information about the next one. WS1 misses it not because the
+signal is absent, but because its hand-built key (count × handedness × pitcher × previous pitch)
+chops the data into too many tiny cells to use. We call that the **fragmentation tax**, and it is
+the whole reason the project climbs past a lookup table.
+
+**Order beyond the last pitch? Not visible to a table.** The order comparison `Δ_order` came out at
+**−0.0015** — essentially zero, read as "no ordering effect a table can see" (a small negative is
+the metric's built-in optimism, not a real cost). The support numbers show why the table is out of
+room: distinct cells explode from about **30,000** (C) to over **320,000** (the unordered view),
+and by the ordered view **more than a third** of the pitches we score land in cells we saw fewer
+than 20 times in training.
+
+**What the model "decided" is itself a finding.** WS1 fits a dial per level for how much to trust
+that level (the *concentration*). Two dials tell a clean story. Pitchers came back extremely
+*distinct* — the dial barely pooled them, confirming every pitcher really does have his own
+repertoire. But the run-value side pegged its dial at the maximum "pool everything" setting on
+every level: in plain words, the cell-by-cell "how many runs is this worth" tables held almost no
+trustworthy signal, and the model correctly refused to trust them. Expected-reward error stayed
+flat (**0.1200**) no matter how much history we added.
+
+**One earlier prediction came true.** On our synthetic test worlds, context-only C lost a hair to a
+"pitcher × count" baseline because handedness carried no signal there. We predicted that would flip
+on real data, where lefty/righty matters — and it did: WS1-C (1.4714) now beats pitcher × count
+(1.4866).
+
+The bottom line: **first-order selection is real, but a lookup table is the wrong tool to express
+it.** That is exactly the hand-off to WS2 (a smarter grammar) and WS3 (which puts pitch physics in
+as features and can see what the table is blind to).
+
+---
+
 ## What WS1 is, and where it sits
 
 The whole project is a **ladder**. Each rung is a model that tries to answer one question:

@@ -1,10 +1,11 @@
 # A Gradient-Boosted Ablation of Five Nested State Views for Pitch Sequencing
 
-*Workstream 3 of a comparative pitch-sequencing study — the **centerpiece**.* This draft is
-written to be completed in place: every quantity that depends on the real Statcast data is a
-`{PLACEHOLDER}`, and the Results and Discussion are **branched** so that the correct
-interpretation is already written for whichever numbers arrive. The synthetic-world numbers
-quoted in §5 are *completed validation*, not placeholders.
+*Workstream 3 of a comparative pitch-sequencing study — the **centerpiece**.* This paper is
+completed in place with the real-data results (2021–2025 Statcast). The Results and Discussion were
+pre-**branched** so that the correct interpretation was already written for whichever numbers
+arrived; the branch **selected by the data** is marked at each fork, and the unselected branches are
+retained and labelled as *pre-registered alternatives*. The synthetic-world numbers quoted in §5
+are *completed validation*, not placeholders.
 
 ---
 
@@ -23,10 +24,17 @@ regressor as a cross-check. The central ablation reports `Δ_order = Loss(min[U,
 and `Δ_matchup = Loss(O) − Loss(OM)` with pitcher-game clustered CIs on **three** targets —
 selection log loss, outcome-1 log loss, and run-value MAE — on validation (2024) and the locked
 test (2025). On the real data (2021–2025 Statcast, ~3.85M pitches) the outcome-1 `Δ_order` is
-{DELTA_ORDER_OUTCOME1} (95% clustered CI {DELTA_ORDER_OUTCOME1_CI}) on validation and
-{DELTA_ORDER_OUTCOME1_TEST} ({DELTA_ORDER_OUTCOME1_TEST_CI}) on the locked test, and
-`Δ_matchup` is {DELTA_MATCHUP_OUTCOME1} ({DELTA_MATCHUP_OUTCOME1_CI}). We validate the method on
-the correctness oracle as a real-model test (decision D35): on the null world the planted
++0.0003 (95% clustered CI [+0.0002, +0.0004]) on validation and
++0.000262 ([+0.000178, +0.000363]) on the locked test, and
+`Δ_matchup` is +0.0005 ([+0.0004, +0.0006]). Both are **statistically certified yet practically
+small**: ordered history does predict pitch outcomes beyond `U`/`L1` (history-at-all `C`→`U` is
+worth ≈0.0026 nats and order adds ≈0.0003 on top, ~0.02% relative log loss), replicated on the
+locked 2025 test; and matchup memory carries *more* outcome signal than within-PA order —
+corroborated where only it can act, on 366,231 first pitches `OM` beats `O` by +0.00124 (~2.5× the
+overall `Δ_matchup`). Selection order structure is unambiguous (`Δ_order` selection = +0.0089) and
+the gradient-boosted views crush every count reference (`C` selection log loss 1.2404 vs best
+reference 1.4410) — features extract what WS1's cells and WS2's grammar could not. We validate the
+method on the correctness oracle as a real-model test (decision D35): on the null world the planted
 *selection* habit is detected (`Δ_order` selection +0.0088, CI [+0.0021, +0.0143]) while the
 *outcome* `Δ_order` is null (−0.0033, CI [−0.0081, +0.0008]) and the permutation test does not
 fire (`NULL_QUIET`); on the positive world with a planted velocity-transition whiff effect the
@@ -336,26 +344,46 @@ took ~11 minutes per world at peak ~650 MB.
 
 The project's headline table — the outcome that every prior workstream was building toward.
 
+**Data vintage.** 3,567,640 regular-season decisions, 2021–2025 (SPEC's ~3.85M counts all game
+types; the config filters to `game_type == "R"`). Train 2021–2023 (2,143,214), validation 2024
+(711,898), locked test 2025 (712,528). Losses below are on validation unless a row is marked
+locked-test.
+
 | view | width | selection log loss | outcome-1 log loss | outcome-2 log loss | run-value MAE | reference (selection) |
 |---|---|---|---|---|---|---|
-| `C`  | 29  | {C_SEL_LL}  | {C_O1_LL}  | {C_O2_LL}  | {C_MAE}  | `pitcher_count` {REF_PITCHER_COUNT} |
-| `U`  | 46  | {U_SEL_LL}  | {U_O1_LL}  | {U_O2_LL}  | {U_MAE}  | `pitcher_count_prev` {REF_PITCHER_COUNT_PREV} |
-| `L1` | 41  | {L1_SEL_LL} | {L1_O1_LL} | {L1_O2_LL} | {L1_MAE} | `pitcher_count_prev` {REF_PITCHER_COUNT_PREV} |
-| `O`  | 82  | {O_SEL_LL}  | {O_O1_LL}  | {O_O2_LL}  | {O_MAE}  | `pitcher_count_prev` {REF_PITCHER_COUNT_PREV} |
-| `OM` | 103 | {OM_SEL_LL} | {OM_O1_LL} | {OM_O2_LL} | {OM_MAE} | `pitcher_count_prev` {REF_PITCHER_COUNT_PREV} |
+| `C`  | 29  | 1.2404  | 1.4610  | 0.9237  | 0.1200  | `pitcher_count` 1.4866 |
+| `U`  | 46  | 1.2091  | 1.4584  | 0.9238  | 0.1201  | `pitcher_count_prev` 1.4410 |
+| `L1` | 41  | 1.2155 | 1.4585 | 0.9240 | 0.1201 | `pitcher_count_prev` 1.4410 |
+| `O`  | 82  | 1.2002  | 1.4581  | 0.9240  | 0.1201  | `pitcher_count_prev` 1.4410 |
+| `OM` | 103 | 1.2000 | 1.4576 | 0.9238 | 0.1200 | `pitcher_count_prev` 1.4410 |
 
 **Ablation, validation (clustered 95% CI):**
 
 | target | `Δ_order` = min[U,L1] − O | `Δ_matchup` = O − OM |
 |---|---|---|
-| selection | {DELTA_ORDER_SEL} {DELTA_ORDER_SEL_CI} | {DELTA_MATCHUP_SEL} {DELTA_MATCHUP_SEL_CI} |
-| outcome-1 | {DELTA_ORDER_OUTCOME1} {DELTA_ORDER_OUTCOME1_CI} | {DELTA_MATCHUP_OUTCOME1} {DELTA_MATCHUP_OUTCOME1_CI} |
-| run-value MAE | {DELTA_ORDER_MAE} {DELTA_ORDER_MAE_CI} | {DELTA_MATCHUP_MAE} {DELTA_MATCHUP_MAE_CI} |
+| selection | +0.0089 [+0.0085, +0.0093] | +0.0002 [+0.0000, +0.0004] |
+| outcome-1 | +0.0003 [+0.0002, +0.0004] | +0.0005 [+0.0004, +0.0006] |
+| run-value MAE | +0.0000 [−0.0000, +0.0000] | +0.0001 [+0.0001, +0.0001] |
 
-**Locked-test confirmation (2025):** outcome-1 `Δ_order` = {DELTA_ORDER_OUTCOME1_TEST}
-({DELTA_ORDER_OUTCOME1_TEST_CI}). Decomposed-vs-direct disagreement per view:
-{DISAGREEMENT_BY_VIEW}. Run-value calibration (O view): slope {O_CAL_SLOPE}, intercept
-{O_CAL_INTERCEPT}. Per-slice outcome-1 `Δ_order`: {DELTA_ORDER_BY_SLICE}.
+**Locked-test confirmation (2025):** outcome-1 `Δ_order` = +0.000262
+([+0.000178, +0.000363]) and outcome-1 `Δ_matchup` = +0.000539 ([+0.000444, +0.000627]) — both CIs
+clear zero, so the validation reading replicates out-of-sample (test central table: `C` = 1.4560,
+`U` = 1.4532, `L1` = 1.4534, `O` = 1.4529, `OM` = 1.4524). Decomposed-vs-direct disagreement per
+view: C = 0.0041, U = 0.0045, L1 = 0.0046, O = 0.0046, OM = 0.0048 — **all within the 0.03
+tolerance**, `OM` included (tighter than the untuned demo of §5). Outcome calibration is healthy:
+ECE 0.0035–0.0037, top-1 accuracy 0.367–0.370, skill vs the marginal ≈5.8–5.9%. Run-value
+calibration (O view): slope {O_CAL_SLOPE}, intercept {O_CAL_INTERCEPT} *(pending: run-value
+calibration slope/intercept — from the report JSON, not in the results log)*. Per-slice outcome-1
+`Δ_order`: {DELTA_ORDER_BY_SLICE} *(pending: per-slice table from the report JSON, not in the
+results log)*.
+
+**Realized run (D34 documentation).** Chosen hyperparameters (identical 12-combo grid per view):
+behavior `num_leaves` 31 (`C`/`U`/`L1`) vs 63 (`O`/`OM`), `min_child_samples` 100, learning rate
+0.03, best iterations 188–276; outcome-stage `num_leaves` 15 (`C`) / 31 elsewhere,
+`min_child_samples` 100 (`C`/`U`/`L1`) vs 20 (`O`/`OM`), iterations 226–297. Fitted parameter counts
+range 46,624–96,264. Stage wall-clock: behavior 1,104.8 s, outcome 2,709.6 s, assemble 2,359.0 s,
+eval 553.2 s; peak RAM 12,739.8 MB (outcome stage). Every run is runmeta-logged for the SPEC §7
+Pareto plot.
 
 ### 6.2 Branched interpretation — the two axes
 
@@ -369,7 +397,8 @@ follows.
 
 #### Order axis (outcome-1 `Δ_order`, read under D21)
 
-**H1 — `O` beats both `U` and `L1` (CI lower bound > 0): genuine ordered outcome dependence.**
+**Selected by the data (2021–2025). H1 — `O` beats both `U` and `L1` (CI lower bound > 0): genuine
+ordered outcome dependence.**
 The fully ordered view lowers outcome log loss below the better of `U`/`L1` by more than the
 clustered CI — out-of-sample *sequencing value* (finding #2), the strong result. Read the effect
 size against the +0.0277 synthetic benchmark: a real-data `Δ_order` an order of magnitude smaller
@@ -380,7 +409,25 @@ in aggregate), the mechanism ablation (which feature group carries it), and the 
 MDP will try to *use* and WS7's OPE will try to *prove* — and the burden then shifts to whether the
 predictable order is also *exploitable* (finding #3), which WS3 cannot answer.
 
-**H2 — `O ≈ U/L1` but both beat `C`: history matters, order does not.** The history views lower
+*Realized (2021–2025).* Selected by the pre-registered rule. Outcome-1 `Δ_order` = +0.0003 (CI
+[+0.0002, +0.0004]) on validation, replicated on the locked 2025 test (+0.000262, CI
+[+0.000178, +0.000363]) — the clustered CI lower bound clears zero on both, so this is genuine
+ordered *outcome* dependence (finding #2), statistically certified rather than assumed. It lands at
+exactly the magnitude SPEC §13 anticipated: practically tiny, ~0.02% relative log loss, roughly
+1/100th of the +0.0277 synthetic benchmark (two orders of magnitude smaller, not one — the effect
+is real but small). Decomposed, history-at-all (`C`→`U`) is worth ≈0.0026 nats and order adds
+≈0.0003 on top. Crucially the mechanism is **diffuse**: the top history feature is
+`prev_release_speed` (rank ~6, gain ≈194k in `O`), but no single engineered order feature
+dominates — the sharp contrast with the synthetic positive world, where the planted mechanism
+concentrated in `o_velo_delta_last` at rank 1 (0.955 recovery). On real data the ordered signal is
+spread thin across many small ordered contributions, not carried by one lever. (Selection
+`Δ_order` is a separate, far larger story — +0.0089, CI [+0.0085, +0.0093] — genuine ordered
+selection dependence beyond WS2's depth-1 stickiness, with the gradient-boosted views crushing every
+count reference: `C` selection 1.2404 vs best reference 1.4410. Features extract what the tables and
+the grammar could not.)
+
+*Pre-registered alternative — not selected.* **H2 — `O ≈ U/L1` but both beat `C`: history matters,
+order does not.** The history views lower
 outcome loss below context-only, but the fully ordered `O` does not refine on the better of
 `U`/`L1` (`Δ_order` not significantly positive). Within-PA history carries outcome value, but its
 *order* beyond the previous pitch / unordered bag does not — the result SPEC §13 explicitly
@@ -390,7 +437,8 @@ history, and it sets the bar WS6's learned representation must clear to justify 
 q̂ grid and propensities are still fully valid at the `L1`/`U`/`O` level; the prescriptive phase
 simply inherits a "history helps, order doesn't" outcome model.
 
-**H3 — nothing beats `C`: no sequencing signal in outcomes at all.** No history view lowers outcome
+*Pre-registered alternative — not selected.* **H3 — nothing beats `C`: no sequencing signal in
+outcomes at all.** No history view lowers outcome
 loss below context-only. Within-PA history carries no *outcome* value a strong tabular model can
 resolve — the cleanest possible finding-#2 null. This does **not** deny finding #1: selection
 structure may still exist (WS2's grammar and WS3's own selection ablation can be positive while the
@@ -402,7 +450,8 @@ sequences are forecastable but not, at this data scale, outcome-predictive."
 
 #### Matchup axis (outcome-1 `Δ_matchup`, read directly)
 
-**M+ — `OM` beats `O` (CI lower bound > 0): real batter–pitcher adaptation.** The matchup view
+**Selected by the data (2021–2025). M+ — `OM` beats `O` (CI lower bound > 0): real batter–pitcher
+adaptation.** The matchup view
 lowers outcome loss below `O` by more than the clustered CI — the first evidence in the study of
 longer-term batter–pitcher adaptation carrying outcome value (WS1/WS2 could not fit `OM`). It must
 corroborate on the `first_pitch` slice, which isolates matchup memory by construction (no within-PA
@@ -410,12 +459,25 @@ history exists on the first pitch, so any `OM`-over-`O` edge there is *purely* c
 holds, WS3 has found a real matchup outcome signal for WS4/WS5/WS7 to exploit and WS6's cross-PA
 representation to extend.
 
-**M0 — `OM ≈ O`: no detectable matchup memory.** The matchup view neither helps nor hurts beyond
+*Realized (2021–2025).* Corroborated. Outcome-1 `Δ_matchup` = +0.0005 (CI [+0.0004, +0.0006]) on
+validation and +0.000539 (CI [+0.000444, +0.000627]) on the locked test — `OM` beats `O`, real
+batter–pitcher adaptation, and *larger than the within-PA order effect* (+0.0005 vs +0.0003). The
+designed first-pitch test passes decisively: on 366,231 first pitches, where no within-PA history
+can exist so `OM`'s only information is cross-PA, `OM` beats `O` by +0.00124 (CI [+0.00108,
++0.00141]) — ≈2.5× the overall `Δ_matchup`, concentrated exactly where only matchup memory can act.
+**Matchup memory carries more outcome signal than within-PA order — a headline finding.** The
+synthetic worlds' significantly *negative* `Δ_matchup` (the pre-registered `M−` branch below) was
+the no-signal overfit cost, exactly as written; on real data the signal is present and the matchup
+block earns its keep, so the prescriptive phase reads the `OM` outcome model.
+
+*Pre-registered alternative — not selected.* **M0 — `OM ≈ O`: no detectable matchup memory.** The
+matchup view neither helps nor hurts beyond
 `O` (CI spans 0). No detectable longer-term batter–pitcher adaptation in outcomes at this data
 scale — a clean read, and the expected one if within-game/season rematch counts are too thin to
 resolve. The prescriptive phase can use `O` and `OM` interchangeably for outcomes.
 
-**M− — `OM` significantly below `O`: matchup features actively cost out-of-sample.** The matchup
+*Pre-registered alternative — not selected.* **M− — `OM` significantly below `O`: matchup features
+actively cost out-of-sample.** The matchup
 view has significantly *higher* outcome loss than `O` (CI upper bound < 0). Because `Δ_matchup` has
 no `min`-bias, this is **not** a statistical artifact — it is a genuine out-of-sample cost: the
 ~21-column matchup block adds estimation variance without adding signal, so a strong model
@@ -442,6 +504,14 @@ the entire prescriptive phase. The *cleanest null* is **H3 × M0**. Whichever pa
 finding is read under the firewall (§7): a boosted ablation measures *prediction*, and only the
 OPE/RL workstreams can test whether any of it is *prescriptive*.
 
+**Selected by the data (2021–2025): H1 × M+** — the "strongest" cell, but read with its realized
+magnitudes. Ordered outcome dependence is genuine and locked-test-replicated yet practically tiny
+(+0.0003, ~0.02% relative log loss, diffuse mechanism), while matchup adaptation is corroborated and
+comparatively *pronounced* on the first-pitch slice where only it can act (+0.00124, ≈2.5× the
+overall). The honest one-line reading of the centerpiece: **within-PA order carries a real but
+minute outcome signal spread thin across features, and cross-PA matchup memory carries more of it —
+both certified at 3.5M-pitch scale, both handed to the prescriptive phase under the firewall.**
+
 ---
 
 ## 7. Discussion
@@ -449,21 +519,31 @@ OPE/RL workstreams can test whether any of it is *prescriptive*.
 The interpretation mirrors the §6 grid, so the discussion is written per axis and completed by the
 same numbers.
 
-**On the order axis.** Under **H1**, WS3 resolves genuine ordered outcome dependence, and the
+**On the order axis (selected: H1).** Under **H1** — *the branch selected by the data* — WS3
+resolves genuine ordered outcome dependence, and the
 burden shifts to the prescriptive workstreams: WS4's bandit and WS5's MDP inherit a q̂ grid that
 *encodes* the ordered effect, and WS7's OPE must test whether acting on it beats the observed
 policy within support — the finding-#2-to-finding-#3 step the firewall (below) forbids WS3 from
-taking itself. Under **H2** (the SPEC §13 expectation), the prescriptive phase inherits a
+taking itself. The realized effect is genuine but minute (+0.0003, locked-test-replicated) and its
+mechanism is *diffuse* (no single dominant order feature — the honest contrast with the synthetic
+world's rank-1 `o_velo_delta_last`), so the ordered signal the q̂ grid encodes is small and spread
+thin. Under **H2** *(pre-registered alternative — not selected)* (the SPEC §13 expectation), the
+prescriptive phase inherits a
 "history-helps-order-doesn't" outcome model and can carry only `L1`/`U`; the honest contribution is
 a *bounded* finding-#2 result with the synthetic worlds proving the model *could* have seen deeper
-order had it been there (recovery ratio 0.955). Under **H3**, the outcome channel is null and the
+order had it been there (recovery ratio 0.955). Under **H3** *(pre-registered alternative — not
+selected)*, the outcome channel is null and the
 study's finding-#2 verdict is negative — a clean, publishable result that redirects the prescriptive
 phase to context-only value and hands the "can a learned representation see what trees cannot"
 question to WS6.
 
-**On the matchup axis, and the negative reading specifically.** Under **M+**, WS3 supplies the
-first real matchup outcome signal and the `first_pitch` slice is its cleanest witness. Under
-**M−** — observed on both synthetic worlds and therefore a live real-data outcome — the key
+**On the matchup axis (selected: M+), and the negative reading specifically.** Under **M+** — *the
+branch selected by the data* (+0.0005 validation, +0.000539 locked test, +0.00124 on the isolating
+first-pitch slice) — WS3 supplies the
+first real matchup outcome signal and the `first_pitch` slice is its cleanest witness, so the
+prescriptive phase reads the `OM` outcome model. Under
+**M−** *(pre-registered alternative — not selected, though observed on both synthetic worlds and
+therefore a genuinely live real-data possibility)* — the key
 discipline is to *not over-read it*. A negative `Δ_matchup` is a statement that adding the matchup
 feature block hurts out-of-sample outcome prediction *in this data*, driven by estimation variance
 over sparse features, not evidence that matchup memory is absent from the game. For the prescriptive
@@ -477,7 +557,9 @@ instrument that says so honestly.
 regardless of branch (decision D33), but the *view* the prescriptive workstreams should read from
 is branch-dependent: `O` under H1/M0/M−, `OM` under M+, `L1`/`U`-competitive-with-`O` under H2, and
 `C` under H3. WS3's job is to make that choice on evidence, and to hand downstream a q̂ grid whose
-level is calibrated (the run-value slope/intercept) and whose disagreement flag is clear.
+level is calibrated (the run-value slope/intercept) and whose disagreement flag is clear. *Realized
+(2021–2025): the data selected H1 × M+, so the prescriptive phase reads the `OM` outcome model — the
+richest feasible view, with its decomposed-vs-direct disagreement (0.0048) inside tolerance.*
 
 ---
 
@@ -521,17 +603,21 @@ views, the first to measure outcome (not just selection) sequencing value, and t
 q̂ grid and propensities the entire prescriptive phase consumes. Its conclusion is branch-conditional
 and complete once the real numbers arrive, on two independent axes:
 
-- **Order axis.** Under **H1**, WS3 finds genuine out-of-sample ordered *outcome* dependence
-  (finding #2) and hands a live signal to WS4/5/7. Under **H2** (the SPEC §13 expectation), it finds
-  that within-PA history helps outcomes but its fine order does not — a clean, bounded result whose
-  synthetic validation (recovery ratio 0.955 vs WS1's 0.03) proves the model would have seen deeper
-  order had it existed. Under **H3**, it finds no outcome sequencing signal at all, redirecting the
-  prescriptive phase to context-only value while leaving finding #1 (selection) intact.
-- **Matchup axis.** Under **M+**, WS3 supplies the study's first real batter–pitcher adaptation
-  signal, witnessed on the `first_pitch` slice. Under **M0**, no detectable matchup memory. Under
-  **M−** — observed on both synthetic worlds and therefore a live real-data outcome — the matchup
-  feature block *costs* out-of-sample, a genuine fragmentation finding (no `min`-bias to explain it
-  away) read with the support-diagnostics checklist and handed to WS6.
+- **Order axis — selected by the data (2021–2025): H1.** WS3 finds genuine out-of-sample ordered
+  *outcome* dependence (finding #2), certified on the locked 2025 test (+0.0003 validation /
+  +0.000262 test) but practically tiny (~0.02% relative log loss) and *diffuse* in mechanism — the
+  SPEC §13 magnitude, now statistically certified rather than assumed. It hands this small, real
+  signal to WS4/5/7. *Pre-registered alternatives — not selected:* **H2** (history helps, order
+  doesn't) and **H3** (no outcome sequencing signal); the synthetic validation (recovery ratio 0.955
+  vs WS1's 0.03) still proves the model would have seen a larger, concentrated ordered effect had one
+  existed.
+- **Matchup axis — selected by the data (2021–2025): M+.** WS3 supplies the study's first real
+  batter–pitcher adaptation signal (+0.0005 validation, +0.000539 locked test), witnessed most
+  sharply on the `first_pitch` slice (+0.00124, where only cross-PA memory can act) — matchup memory
+  carries *more* outcome signal than within-PA order. *Pre-registered alternatives — not selected:*
+  **M0** (no matchup memory) and **M−** (matchup features cost out-of-sample); the latter was
+  observed on both synthetic worlds and retained as the pre-registered alternative, but was *not*
+  borne out on real data, where the matchup block earns its keep.
 
 Across every cell of the grid the durable contributions are the same: a like-for-like five-view
 ablation on three targets with a locked-test confirmation, an interpretable decomposed outcome model

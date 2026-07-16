@@ -6,6 +6,57 @@ only read one document about WS3, read this one first.
 
 ---
 
+## What we actually found (2021–2025)
+
+Here is the headline in plain words. We ran the centerpiece on five full seasons — about **3.57
+million** regular-season pitch decisions — training on 2021–2023, tuning on 2024, and locking away
+2025 as a final honest test.
+
+**Order helps predict outcomes — for real, but barely.** This is the project's central question,
+and the answer is a clean, careful "yes, a little." The ordered view O beat the history-lite views
+on outcome prediction by **+0.0003** in log loss (interval [+0.0002, +0.0004], clears zero), and —
+the part that matters — the same tiny edge showed up again on the locked 2025 data we never touched
+during development. So it is genuine, not a fluke of one season. But it is *small*: about **0.02%**
+of the score, roughly one-hundredth of the effect we planted in our synthetic stress-test. In
+order: having *any* within-at-bat history (versus none) is worth about **0.0026**; the *order* of
+that history adds about **0.0003** more on top. SPEC predicted "order barely beats the last pitch,"
+and that is exactly what happened — except now we can *certify* it at three-and-a-half-million
+pitches instead of assuming it.
+
+**The order signal is spread thin, not concentrated.** In our synthetic test world the planted
+effect had a single obvious cause — one velocity-jump feature the model ranked #1 and recovered 95%
+of. On real data there is no such lever. The most useful history feature is simply the previous
+pitch's speed (and it only ranks around sixth), and after that the ordered signal is scattered
+across many small contributions. That is an honest, slightly humbling result: real sequencing value
+isn't one clean trick, it's a faint haze over lots of little things.
+
+**Matchup memory beats order — and we proved it where only it can act.** The bigger surprise: the
+matchup view OM beat the ordered view O by **+0.0005** — *larger* than the order effect itself.
+Cross-at-bat memory of how this batter and this pitcher have gone before carries more outcome signal
+than the within-at-bat sequence. And there's a clean proof it's real: on the **366,231 first
+pitches** of at-bats — where there is *no* within-at-bat history yet, so matchup memory is the
+*only* thing OM can be using — OM beat O by **+0.00124**, about **2.5×** its overall edge. The
+effect concentrates exactly where the theory says it must. "Matchup memory beats within-at-bat
+order" is a genuine headline finding.
+
+**What the tables couldn't see, the trees could.** WS1's lookup tables and WS2's grammar both hit
+the same wall: they could tell that the previous pitch mattered (first-order structure is real) but
+couldn't cash it, because carving the data into hand-built cells fragmented it. WS3's trees — which
+can ask questions about pitch *physics* and let boosting pool information — crushed every one of
+those baselines: the ordered behavior model scored **1.2002** against the best reference's 1.4410,
+and the *selection* order effect is a robust **+0.0089** (far bigger than the outcome one). Features
+extract what cells could not. That is the whole reason WS3 is the centerpiece.
+
+**A couple of honest footnotes.** The run-value error (MAE) didn't budge no matter what we added
+(**0.1200–0.1201**) — it's a blunt metric dominated by irreducible pitch-to-pitch noise, exactly as
+expected. The outcome models are well-calibrated (their probabilities mean what they say), so the
+tiny effects above aren't a calibration mirage. And the whole thing is a *prediction*, not a
+prescription: WS3 says "ordered history helps forecast the outcome," not "changing the sequence
+would improve it." Turning finding #2 into finding #3 is the job of the OPE/RL workstreams
+downstream — and they are allowed to refuse when the evidence is too thin.
+
+---
+
 ## What WS3 is, and why it's the centerpiece
 
 The whole project is a **ladder**. Each rung is a model that asks *does the sequence of pitches

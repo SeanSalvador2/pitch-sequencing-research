@@ -406,6 +406,13 @@ def run_ws4(
     result: dict = {"world": world_tag, "views": views, "alphas": alphas,
                     "posterior_scale": float(posterior_scale)}
 
+    import time as _time
+    _t0 = _time.monotonic()
+
+    def _p(msg: str) -> None:
+        """Phase-progress narration (real runs are long; silence reads as a hang)."""
+        print(f"[ws4 +{_time.monotonic() - _t0:7.0f}s] {msg}", flush=True)
+
     with track_run(step="ws4_bandit", world=world_tag) as meta:
         # --- data + split ---
         truth: dict = {}
@@ -414,7 +421,9 @@ def run_ws4(
         else:
             if source is None:
                 raise ValueError("--table is required when --synth is off")
+            _p("loading decision table...")
             table = _load_table(source)
+        _p(f"table loaded: {len(table):,} rows; building temporal splits...")
         splits = make_splits(table, config)["primary"]
         train = table.loc[splits["train"].to_numpy()].reset_index(drop=True)
         val = table.loc[splits["val"].to_numpy()].reset_index(drop=True)
@@ -429,6 +438,7 @@ def run_ws4(
         else:
             if ws3_dir is None:
                 raise ValueError("--ws3-dir is required when --synth is off (decision D33)")
+            _p(f"loading WS3 artifacts from {ws3_dir}...")
             artifacts = load_ws3_artifacts(ws3_dir)
             missing = [v for v in views if v not in artifacts.behavior or v not in artifacts.outcome]
             if missing:
@@ -436,11 +446,16 @@ def run_ws4(
 
         # --- per-view bandit inputs (q, q_sd, mu, feasible, align) ---
         # Feasibility (SPEC 4) uses the FULL table's trailing history; computed once and shared.
+        _p("computing feasibility masks over the full table's trailing history...")
         feas_eval, low_hist_eval = _feasibility_for_eval(table, eval_rows, config)
-        inputs = {v: build_bandit_inputs(eval_rows, artifacts, v, config=config,
-                                         posterior_scale=posterior_scale,
-                                         feasible_mask=feas_eval, low_history=low_hist_eval)
-                  for v in views}
+        _p(f"building bandit inputs per view (q-grid + propensities on {len(eval_rows):,} eval rows; "
+           "the slowest silent phase)...")
+        inputs = {}
+        for v in views:
+            inputs[v] = build_bandit_inputs(eval_rows, artifacts, v, config=config,
+                                            posterior_scale=posterior_scale,
+                                            feasible_mask=feas_eval, low_history=low_hist_eval)
+            _p(f"  inputs[{v}] ready")
         common = inputs[COMMON_EVAL_VIEW]
         mu_common = common.mu
         q_common = common.q
@@ -462,6 +477,8 @@ def run_ws4(
         }
 
         # --- GATE FIRST: behavior-policy recovery (D37 / SPEC 0.3) ---
+        _p(f"gate: behavior-policy recovery on {int(finite_R.sum()):,} scored rows "
+           f"(n_boot={n_boot} cluster bootstrap)...")
         recovery = ope.behavior_policy_recovery(
             logged, config=eval_config, n_actions=len(FAMILIES), seed=seed, n_boot=n_boot,
             reward_col="reward", action_col="action", mu_col="mu_prob",
@@ -475,6 +492,8 @@ def run_ws4(
                 _write(out_dir, world_tag, result, meta)
             return result
         result["gate"] = "PASSED"
+        _p("gate PASSED; drawing Thompson targets per view "
+           f"(n_samples={n_samples} MC draws/row)...")
 
         # --- Thompson targets per view + softening + OPE per alpha ---
         targets = {}
@@ -483,6 +502,7 @@ def run_ws4(
             targets[v] = thompson_policy(bi.q, bi.q_sd, bi.feasible_mask, n_samples=n_samples,
                                          rng=thompson_seed, observed_action=observed)
             targets[v] = targets[v][finite_R]  # align to the scored logged rows
+            _p(f"  thompson[{v}] done")
         mu_scored = mu_common[finite_R]
         q_scored = q_common[finite_R]
         actions_scored = observed[finite_R]
@@ -491,10 +511,14 @@ def run_ws4(
 
         frontier: dict = {v: {} for v in views}
         gaps_by_alpha: dict = {}
+        _n_cells = len(alphas) * len(views)
+        _done = 0
         for a in alphas:
             for v in views:
                 pol = soften(targets[v], mu_scored, a)
                 frontier[v][a] = _evaluate_view_alpha(logged, pol, q_scored, eval_config, n_boot, seed)
+                _done += 1
+                _p(f"OPE cell {_done}/{_n_cells} done (view={v}, alpha={a})")
             # C -> O and L1 -> C gaps at this alpha (common evaluator, clustered).
             pol_c = soften(targets["C"], mu_scored, a)
             pol_o = soften(targets["O"], mu_scored, a)
@@ -507,6 +531,7 @@ def run_ws4(
                                               pol_l1, pol_c, actions_scored, cluster_frame,
                                               gap_boot, seed)
             gaps_by_alpha[a] = entry
+            _p(f"prescriptive-ablation gaps done for alpha={a}")
 
         result["frontier"] = frontier
         result["gaps"] = gaps_by_alpha
@@ -515,6 +540,7 @@ def run_ws4(
         result["behavior_value"] = behavior_value
 
         # --- exhibits: ambiguity + deviation maps (at the upper-bound alpha) ---
+        _p("OPE complete; computing ambiguity/deviation exhibits and writing outputs...")
         ambiguity = {}
         deviation = {}
         for v in views:

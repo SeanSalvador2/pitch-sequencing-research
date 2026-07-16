@@ -122,3 +122,47 @@ tiny** (+0.0003 nats, replicated on the locked 2025 test); history-at-all (C→U
 signal than within-PA order.** Selection order structure is robust (+0.0089). The SPEC
 §13 expectation ("O barely beats L1") is vindicated in magnitude and, at this scale,
 statistically certified rather than assumed.
+
+
+---
+
+## Detail digest (2026-07-16) — documentation inputs beyond the headlines
+
+### First-pitch corroboration (scripts/first_pitch_check.py)
+On 366,231 first pitches (val+test), where within-PA history cannot exist:
+C=1.42138  L1=1.42060  U=1.42037  O=1.42076  OM=1.41952 (outcome1 log loss).
+FIRST-PITCH Delta_matchup (O−OM) = +0.00124  CI[+0.00108, +0.00141] → **M+ CORROBORATED**
+(~2.5× the overall Delta_matchup, concentrated exactly where only matchup memory can act).
+
+### WS1 fitted concentrations (the "what did the data decide" story)
+Selection: global=1, count_hand α=27.7, **pitcher α=2.35** (pitchers are extremely
+distinct — almost no pooling), history α: L1=128.3, O=73.4, U=72.2 (history levels
+shrunk hard toward the pitcher parent). Run value: **κ pegged at the 200 ceiling on
+every non-global level** — cell-level run values are noise-dominated; the fitter pools
+them as hard as allowed. Backoff at prediction (val rows): C resolves 626k at pitcher /
+86k at count_hand / 0 global; L1 resolves 604k at history / 23k pitcher / 86k count_hand.
+
+### WS2 per-depth concentrations + motifs
+Depth concentrations: cell=27.7, pitcher=2.35, **depth1=17.9 (earns its keep)**,
+depth2=84.7, depth3=113.0, depth4=166.7 — monotonically increasing: the data votes
+"pool it away" progressively with depth. Permutation control on real data: effective-order
+mass ≥2 → 0.000, mean 0.90 → 0.34 (machinery collapses correctly).
+Top-20 motifs: depth-1 stickiness dominates (XX/FS/CH/SL/SI/CU all self-promote; the
+largest KLs 0.16–0.03); depth-2 rows are real but an order of magnitude smaller
+(KL ≤ 0.013), including double-up damping (e.g. [CH, CH] → suppress) and
+fastball-re-promotion after off-speed pairs ([FS FF], [SL FF] → promote).
+
+### WS3 detail
+Top-10 gain, O view: strikes, action_family, balls, batter_tend_whiff/swing,
+**prev_release_speed (193,583)**, u_n_prior, base_state, batter_tend_inplay/chase —
+the dominant history feature is the previous pitch's speed; no single engineered
+order feature dominates (the +0.0003 order effect is **diffuse**, unlike the synthetic
+world where o_velo_delta_last was rank 1). OM's top-10 adds prev_pitch_type and shrinks
+the batter_tend_* gains (matchup features absorb general-tendency signal).
+TEST central (locked): C=1.4560, L1=1.4534, U=1.4532, O=1.4529, OM=1.4524;
+test Δ_order=+0.000262 CI[+0.000178,+0.000363]; test Δ_matchup=+0.000539
+CI[+0.000444,+0.000627]. Calibration ECE 0.0035–0.0037; top-1 acc 0.367–0.370;
+skill vs marginal ~5.8–5.9%.
+Chosen hyperparameters (D34 grid): behavior num_leaves 31 (C/U/L1) vs 63 (O/OM),
+min_child_samples 100, lr 0.03, best iters 188–276; outcome num_leaves 15 (C) / 31,
+min_child_samples 100 (C/U/L1) vs 20 (O/OM), iters 226–297. Param counts 46,624–96,264.

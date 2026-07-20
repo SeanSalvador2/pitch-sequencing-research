@@ -166,3 +166,43 @@ skill vs marginal ~5.8–5.9%.
 Chosen hyperparameters (D34 grid): behavior num_leaves 31 (C/U/L1) vs 63 (O/OM),
 min_child_samples 100, lr 0.03, best iters 188–276; outcome num_leaves 15 (C) / 31,
 min_child_samples 100 (C/U/L1) vs 20 (O/OM), iters 226–297. Param counts 46,624–96,264.
+
+---
+
+## WS4 — Bayesian contextual bandit (myopic prescription, OPE gate) (2026-07-17)
+
+```
+ world          : real
+ rows           : train=2,143,214  eval(scored)=1,419,590
+ feasibility    : mean #feasible/row=3.71  empty-mask(no-rec)=4.9%  low-history=4.6%
+ behavior recovery: PASS  (observed=+0.0000  IPS weights unit=True)  [gate; SPEC 0.3 / D37]
+ behavior value V(mu) = -0.0001   (alpha=0 baseline)
+
+ D38 PRESCRIPTIVE-ABLATION (per view/alpha; common evaluator = O):
+   every softened policy value <= V(mu); d(vs beh) negative and growing with alpha
+   (C/L1/O near-identical): alpha .10 ~ -0.0009, .25 ~ -0.0022, .50 ~ -0.0045, 1.0 ~ -0.0089
+   ESS% collapses 100 -> 24.7 -> 5.5 -> 1.7 -> 0.6 as alpha rises; oos_support ~ 0
+   per-cell verdict: alpha 0 and 1 INCONCLUSIVE, alpha .10/.25/.50 CONSISTENT
+
+ SEQUENCING-PRESCRIPTION GAPS (O-vs-C isolation, clustered by pitcher-game):
+   alpha 0.00  O-C = +0.0000  CI[+0.0000,+0.0000]
+   alpha 0.10  O-C = +0.0000  CI[+0.0000,+0.0000]  (CI excludes 0)
+   alpha 0.25  O-C = +0.0001  CI[+0.0001,+0.0001]  (CI excludes 0)
+   alpha 0.50  O-C = +0.0002  CI[+0.0001,+0.0002]  (CI excludes 0)
+   alpha 1.00  O-C = +0.0003  CI[+0.0002,+0.0004]  (CI excludes 0);  L1-C tracks O-C
+
+ AMBIGUITY : mean P(top>runner-up) ~0.57; ambiguous @95 = 1.00 (nearly every rec a toss-up)
+             decidable=1,320,705  no-rec=69,823
+ DEVIATION : mean TV from behavior at alpha=1: C=0.290 L1=0.293 O=0.296
+ elapsed (s): 34182 (~9.5 h; FQE-in-loop dominates)   peak mem (MB): 8991.5
+```
+
+Headline reading: **the myopic prescriptive layer does not beat observed MLB behavior.**
+The OPE gate PASSES (estimates are trustworthy); every deviation from behavior *lowers*
+estimated value, and value-vs-behavior is negative at all alpha>0. The sequencing-specific
+prescriptive isolation (O-vs-C) is statistically nonzero (CI excludes 0 from alpha>=0.1) but
+**practically negligible** (~+0.0001 to +0.0003 run), and grows only as the policy moves
+off-support (ESS -> 0.6%). ~99% of "best next pitch" recommendations are toss-ups at 95%
+confidence. Consistent with WS3 finding #2 (order helps outcomes, but barely): a greedy
+one-pitch-ahead recommender cannot convert that sliver into decision value. This is the
+honest D39 result and the motivation for the sequential rungs (WS5 setup value, WS7 RL).

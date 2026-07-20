@@ -594,7 +594,7 @@ skip the (verdict-excluded, D24) count-conditional FQE cross-check for a faster 
 `--posterior-scale` (default 0.05) is the single Thompson-confidence knob (see the model
 docstring); `--n-samples` (default 1500) is the Monte-Carlo draw count.
 
-**Expected.** **Observed at full scale: budget 1.5–4 hours** (the 15-cell OPE loop dominates; the run narrates its phases as `[ws4 +NNNs] ...` lines, so treat >45 min of silence on a single phase — and only that — as a stall). (Original estimate — WS4
+**Expected.** **Observed at full scale: ~9.5 hours** (the FQE-in-loop OPE dominates; each of the 15 view×alpha cells is ~30 min on 1.4M scored rows) (the 15-cell OPE loop dominates; the run narrates its phases as `[ws4 +NNNs] ...` lines, so treat >45 min of silence on a single phase — and only that — as a stall). (Original estimate — WS4
 **loads** WS3's models and does no training). The cost is the 8-family q̂/σ predict sweep and
 the Thompson Monte-Carlo over the ~1.5M val+test rows for three views, plus the OPE estimator
 bootstraps for five α per view and the clustered gap bootstraps; the optional FQE cross-check

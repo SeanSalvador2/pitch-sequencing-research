@@ -6,6 +6,52 @@ one document about WS4, read this one first.
 
 ---
 
+## What we actually found (2021–2025)
+
+We ran WS4 on the full five seasons of real Statcast data (2021–2025) — training the pieces on
+2021–2023 and scoring the `1,419,590` held-out pitches of 2024–2025. Here, in plain words, is what came
+back. (The rest of this guide explains *how* each piece works; this section is the *result*.)
+
+**The trust gate passed.** Before trusting a single recommendation, WS4 checks that the ruler works — it
+asks the OPE machinery to recover the value of the pitcher's *actual* behavior, which we already know.
+It did, exactly (the importance weights came out to 1, the tell-tale sign). So everything below is
+trustworthy: when WS4 puts a number on a policy, we can believe the number.
+
+**The greedy recommender does not beat real pitchers.** This is the headline. Every version of the
+"best next pitch" recommender we tried — from a timid nudge away from what the pitcher did, all the way
+to the bold "always throw the model's favorite" — scored **at or below** the pitchers' own choices. Not
+once did it beat them, and the more boldly it deviated, the *worse* it did (the value slid from about
+`−0.001` runs at a gentle setting to about `−0.009` at the boldest). Real MLB pitchers, it turns out,
+are already very hard to out-guess one pitch at a time. That's not the machine failing — it's an honest,
+informative result, and it's the same story we saw on our test worlds, now confirmed on real baseball.
+
+**The sequencing-specific edge is real — but far too small to act on.** Remember the clean experiment:
+give the *same* recommender either just the situation (`C`) or the situation plus the full pitch order
+(`O`), grade both with the same ruler, and the `O − C` gap is the pure value of *knowing the order*. On
+real data that gap is genuinely there — it's statistically distinguishable from zero once the
+recommender deviates a little — but it is *minuscule*: about `+0.0001` to `+0.0003` runs, and it grows
+only when the recommender wanders so far from real pitching that the estimate itself gets shaky. So
+"does knowing the sequence let a greedy chooser make better calls?" gets a precise answer: *technically
+yes, practically no.* It is the real-data twin of the ceiling we measured on the test world.
+
+**Almost every "best pitch" call is a coin-flip.** When WS4 asks how confident it is that its top pick
+really beats the runner-up, the average confidence is only about **57%** — barely better than a
+toss-up — and about **99%** of its calls are statistical ties at the 95% level. This is honest, not
+broken: at pitch-family resolution several pitches usually sit within each other's error bars, so "the
+single best next pitch" is rarely a resolvable question. The right output is a *shortlist*, never a
+cocky single pick.
+
+**Why this points to the sequential models next.** Put it together: the recommender is trustworthy (the
+gate passed), it can't beat real pitchers one pitch at a time, and the sliver of value that *order* adds
+is real but too small for a greedy chooser to cash. That is exactly the *ceiling on greed* this chapter
+is about — now confirmed on real data, not just the synthetic fixture. The value that's left lives in
+the **setup**: throwing a pitch to make the *next* one better, which pays off in a future situation a
+one-pitch-at-a-time model literally cannot see. Catching that is the job of the sequential rungs —
+**WS5** (which can value a setup through the count) and **WS7** (offline RL) — and their bar to clear is
+precisely this: beat the ceiling WS4 just measured.
+
+---
+
 ## What WS4 is, and the one-sentence version of the result
 
 The whole project is a **ladder**. WS1, WS2, and WS3 answered *does the pitch sequence help you
@@ -276,4 +322,3 @@ python workstreams/ws4_bandit/run_ws4.py --synth positive --out results/ws4_pos/
 - **INCONCLUSIVE** — the verdict when the OPE estimators disagree by more than their own error bars. Not
   "it works," not "it fails" — "we refuse to call it." A first-class result, written down in advance so a
   disappointing number can't be quietly retold as a win.
-</content>

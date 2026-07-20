@@ -415,4 +415,3 @@ different OPE estimators *agree*; if they diverge by more than their own error b
 honest thing — "neutral" on the null world, "inconclusive-because-myopic" on the positive world where the
 effect is a setup a bandit can't reach. Crucially, we wrote down what each of those verdicts *means* before
 we ran anything, so a disappointing number can't be quietly retold as a win.
-</content>

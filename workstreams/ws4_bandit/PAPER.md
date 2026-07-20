@@ -1,10 +1,11 @@
 # A Bayesian Contextual Bandit for Pitch Prescription, and the Myopic Ceiling It Measures
 
 *Workstream 4 of a comparative pitch-sequencing study — the first prescriptive rung (Phase B).*
-This draft is written to be completed in place: every quantity that depends on the real Statcast
-data is a `{PLACEHOLDER}`, and the Results and Discussion are **branched** so that the correct
-interpretation is already written for whichever numbers arrive. The synthetic-world numbers quoted
-in §5 are *completed validation* from the committed WS4a run, not placeholders.
+This paper is completed in place with the real-data results (2021–2025 Statcast). The Results and
+Discussion were pre-**branched** so that the correct interpretation was already written for whichever
+numbers arrived; the branch **selected by the data** is marked at each fork, and the unselected
+branches are retained and labelled as *pre-registered alternatives*. The synthetic-world numbers
+quoted in §5 are *completed validation* from the committed WS4a run, not placeholders.
 
 ---
 
@@ -23,11 +24,22 @@ consumes WS3's saved `q̂`, propensities `μ(a | s)`, and residual uncertainty t
 `load_ws3_artifacts` (decision D33). The core exhibit is the **prescriptive ablation** (decision
 D38): the value of the policy built from the `C`, `L1`, and `O` views, all scored against **one
 fixed evaluator** (the `O`-view behavior and `q̂`), so the `C → O` value gap isolates the policy's
-*information*, not the evaluator's. On the real data (2021–2025 Statcast, ~3.85M pitches) the
-behavior recovery is {GATE}, the behavior value is `V(μ) = {V_MU}`, the moderate-α (`α = {ALPHA_MOD}`)
-`O`-view policy value is `{O_VALUE_MOD}` (95% lower bound `{O_LOWER_MOD}`), and the sequencing
-`O − C` gap is `{GAP_OC_MOD}` (clustered 95% CI `{GAP_OC_MOD_CI}`); the overall verdict is
-`{VERDICT}`. We validate the method on the correctness oracle with a completed two-world study. On
+*information*, not the evaluator's. On the real data (2021–2025 Statcast, 3,567,640 regular-season
+decisions; WS4 scores the 1,419,590 held-out validation+test rows) the behavior recovery is
+**G-PASS** (observed `+0.0000`, IPS weights unit), so the OPE estimates are trustworthy; the behavior
+value is `V(μ) = −0.0001`, and **every softened policy scores at or below it** — the moderate-α
+(`α = 0.25`) `O`-view value is `−0.0023` (`d = −0.0022` vs behavior), the deficit growing monotonically
+(`−0.0009` at `α = 0.10` to `−0.0089` at `α = 1`) as the effective sample size collapses
+`100% → 24.7% → 5.5% → 1.7% → 0.6%`. So the **myopic bandit does not beat observed MLB pitcher behavior
+at any α > 0** (the `V−` reading — a first-class honest negative, decision D39, not a failure). The
+sequencing `O − C` gap is **real but negligible**: CI-positive from `α ≥ 0.1` yet only `+0.0001`
+(clustered 95% CI `[+0.0001, +0.0001]`) at `α = 0.25`, rising to `+0.0003` (`[+0.0002, +0.0004]`) at
+`α = 1`, and growing solely as the policy moves off support (`P0`, sequential-not-myopic). This is the
+study's honest WS4 headline — **now confirmed on real data, not just the synthetic fixture**: myopic
+prescription does not beat observed behavior, the sequencing-prescription gap is real but too small to
+act on, and both facts motivate the sequential rungs (WS5 setup value, WS7 offline RL). Per-α agreement
+is `CONSISTENT` at `α ∈ {0.1, 0.25, 0.5}` and `INCONCLUSIVE` at the `{0, 1}` endpoints (decision D24),
+all first-class. We validate the method on the correctness oracle with a completed two-world study. On
 the **null** world the behavior recovery passes exactly (IPS weights ≡ 1 at `α = 0`), the raw
 value-vs-behavior column shows a *count-driven* gain (the habit-based synthetic behavior policy is
 not reward-optimal), but the `O − C` gap is significantly **negative** (`−0.0030`, CI
@@ -47,9 +59,10 @@ floor** (`~0.006` CI half-width at synthetic scale). A gap-machinery self-test c
 machinery is not blind: `SEQ_EXPLOITED` fires when a genuinely myopic advantage is constructed. The
 effect is therefore **present but sequential-not-myopic** — precisely the falsifiable target
 (decision D40) that WS5 (a tabular MDP that can value a *setup* pitch) and WS7 (offline RL) exist to
-exceed. A companion ambiguity exhibit reports that the mean posterior confidence that the top family
-beats the runner-up is only `~0.62–0.66`, and `~99%` of recommendations are toss-ups at 95%
-confidence — an honest statement of how resolvable "best next pitch" is under myopia. Everything is
+exceed. A companion ambiguity exhibit reports that on the real data the mean posterior confidence that the top
+family beats the runner-up is only `~0.57` (`~0.62–0.66` on the synthetic fixtures), and `~99%` of the
+1,320,705 decidable recommendations are toss-ups at 95% confidence (`ambiguous@95 ≈ 1.00`) — an honest
+statement of how resolvable "best next pitch" is under myopia. Everything is
 read under the study's finding-#2 / finding-#3 firewall: WS4 does not *assume* `q̂` is causal, it
 *tests* whether acting on it beats the observed policy within support, and reports INCONCLUSIVE when
 its estimators disagree.
@@ -388,9 +401,10 @@ distance at `α = 1`) is `~0.35` for `C` and `~0.30` for `O`: the ordered-state 
 evaluation rows alone, which undercounted each pitcher's pre-game repertoire (a 2024 game's trailing
 365-day window lies in the train seasons) and **spuriously flagged 27% of decisions as
 no-recommendation**. Computing the mask on the full table's trailing window and subsetting to the
-evaluation rows fixes it to `0%` at scale. It is recorded here because it is exactly the kind of
-leakage-adjacent error the study's discipline exists to catch: the mask must see the same history the
-pitcher did.
+evaluation rows removes the spurious flags entirely; on the real data only a **genuine** `4.9%`
+remains (low-history pitchers whose pre-game repertoire cannot be established — §6.1), not the 27%
+artifact. It is recorded here because it is exactly the kind of leakage-adjacent error the study's
+discipline exists to catch: the mask must see the same history the pitcher did.
 
 ---
 
@@ -398,21 +412,71 @@ pitcher did.
 
 ### 6.1 The central table (real data)
 
-The behavior-recovery gate, the per-view/per-`α` OPE frontier, and the sequencing-prescription gaps.
+The behavior-recovery gate, the per-view/per-`α` OPE frontier (the D38 prescriptive ablation), and the
+sequencing-prescription gaps.
 
-| view | `α` | value | lower 95 | Δ vs behavior | ESS% | oos | per-`α` verdict |
-|---|---|---|---|---|---|---|---|
-| `C`  | {ALPHA_MOD} | {C_VALUE_MOD}  | {C_LOWER_MOD}  | {C_DELTA_MOD}  | {C_ESS_MOD}  | {C_OOS_MOD}  | {C_VERDICT_MOD} |
-| `L1` | {ALPHA_MOD} | {L1_VALUE_MOD} | {L1_LOWER_MOD} | {L1_DELTA_MOD} | {L1_ESS_MOD} | {L1_OOS_MOD} | {L1_VERDICT_MOD} |
-| `O`  | {ALPHA_MOD} | {O_VALUE_MOD}  | {O_LOWER_MOD}  | {O_DELTA_MOD}  | {O_ESS_MOD}  | {O_OOS_MOD}  | {O_VERDICT_MOD} |
+**Data vintage.** 3,567,640 regular-season decisions, 2021–2025 (SPEC's ~3.85M counts all game types;
+the config filters to `game_type == "R"`). WS4 refits nothing: it reads WS3's train-fold (2021–2023,
+2,143,214) behavior and outcome models and scores the held-out evaluation rows — validation (2024) plus
+the locked test (2025), i.e. eval = val + test 2024–2025 — for **1,419,590 scored decisions**. All CIs
+are pitcher-game clustered. Wall-clock `~9.5 h` (FQE-in-loop dominates; peak RAM 8,991.5 MB).
 
-**Gate:** {GATE} (behavior recovery {GATE_DETAIL}; IPS weights unit = {IPS_UNIT}). **Behavior value:**
-`V(μ) = {V_MU}`. **Sequencing gaps (clustered, common evaluator = `O`):** `O − C = {GAP_OC_MOD}` (CI
-`{GAP_OC_MOD_CI}`, lower 95 `{GAP_OC_MOD_LOWER}`) at `α = {ALPHA_MOD}`, and `{GAP_OC_TOP}` (CI
-`{GAP_OC_TOP_CI}`) at `α = 1`; `L1 − C = {GAP_L1C_MOD}`. **Ambiguity (`O`):** mean
-`P(top > runner-up) = {P_BEAT}`, `ambiguous@95 = {AMB95}`. **Deviation (mean TV, `α = 1`):**
-`C = {TV_C}`, `O = {TV_O}`. **ESS at `α = 1`:** `C = {ESS_C_TOP}`, `O = {ESS_O_TOP}`; max weight
-`{MAX_W}`.
+**Feasibility.** Mean feasible families per decision `= 3.71`. Empty-mask (**no recommendation**)
+`= 4.9%` (`69,823` rows) and low-history `= 4.6%`; these are **genuine** low-history pitchers whose
+pre-game repertoire cannot be established, *not* the spurious 27% the eval-rows-only mask bug produced
+(§5). The `1,320,705` decidable rows (`≥ 2` feasible families) carry the ambiguity read below.
+
+**The gate (precondition, D37).** Behavior-policy recovery **PASSES**: the OPE harness recovers the
+observed held-out mean reward with the IPS importance weights exactly 1 (observed `+0.0000`), so every
+target value below is interpretable (SPEC §0.3). Behavior value `V(μ) = −0.0001` (the `α = 0` baseline).
+
+**The value-vs-`α` frontier (D38 ablation).** Values are `C`/`L1`/`O` near-identical to four decimals —
+the tiny ablation differences live in the `O − C` gap table below — so one shared frontier is shown,
+with `value = V(μ) + d`:
+
+| `α` | value | `d` vs behavior | ESS% | oos | per-`α` verdict |
+|---|---|---|---|---|---|
+| 0.00 | −0.0001 | 0.0000  | 100  | ~0 | INCONCLUSIVE |
+| 0.10 | −0.0010 | −0.0009 | 24.7 | ~0 | CONSISTENT |
+| 0.25 | −0.0023 | −0.0022 | 5.5  | ~0 | CONSISTENT |
+| 0.50 | −0.0046 | −0.0045 | 1.7  | ~0 | CONSISTENT |
+| 1.00 | −0.0090 | −0.0089 | 0.6  | ~0 | INCONCLUSIVE |
+
+Every softened policy scores **at or below** behavior; `d` is negative and grows monotonically with α
+while ESS collapses — the `V−` reading (§6.2). (Each `value` at `α > 0` is `V(μ) + d`, arithmetically
+from the D38 block; the per-view value lower bound is not in the results log — the resolved CIs are on
+the `O − C` gap.) The `α = 0` and `α = 1` endpoints carry a per-`α` **INCONCLUSIVE** (D24: DM/SNIPS/DR
+diverge by more than their CI half-widths) — distinct from the gate, which is the IPS behavior-recovery
+check and PASSES; the interior `α ∈ {0.1, 0.25, 0.5}` are CONSISTENT.
+
+**The sequencing-prescription gaps (`O − C` isolation, common evaluator `O`, pitcher-game clustered).**
+
+| `α` | `O − C` | clustered 95% CI | resolves > 0? |
+|---|---|---|---|
+| 0.00 | +0.0000 | [+0.0000, +0.0000] | no |
+| 0.10 | +0.0000 | [+0.0000, +0.0000] | yes (CI excludes 0) |
+| 0.25 | +0.0001 | [+0.0001, +0.0001] | yes |
+| 0.50 | +0.0002 | [+0.0001, +0.0002] | yes |
+| 1.00 | +0.0003 | [+0.0002, +0.0004] | yes |
+
+`L1 − C` **tracks `O − C`** at every α. The gap is statistically resolved (CI excludes 0) from
+`α ≥ 0.1` but is **practically negligible** (`+0.0001` to `+0.0003` run) and grows *only* as the policy
+moves off support (ESS `24.7% → 0.6%`) — the `P0` sequential-not-myopic reading (§6.2).
+
+**Ambiguity (`O`).** Mean `P(top > runner-up) = ~0.57`; `ambiguous@95 ≈ 1.00` — `~99%` of the
+`1,320,705` decidable recommendations are toss-ups at 95% posterior confidence. **Deviation (mean TV
+from behavior, `α = 1`):** `C = 0.290`, `L1 = 0.293`, `O = 0.296` (`≈ 0.29`; the ordered policy deviates
+marginally *more* than context-only on real data — the reverse of the synthetic fixture, where `O`'s
+noisier draws stayed closer). **ESS at `α = 1`:** `C = O = 0.6%` (`C`/`L1`/`O` near-identical); max
+weight `{MAX_W}` *(pending: max importance weight not in the results log; the ESS collapse to `0.6%` is
+the binding support statistic)*.
+
+**Headline (real data, 2021–2025).** Myopic prescription does **not** beat observed MLB behavior — every
+deviation lowers estimated value (`V−`). The sequencing-prescription gap is **real but negligible** —
+CI-positive from `α ≥ 0.1`, yet only `+0.0001`–`+0.0003` run and growing only off support (`P0`). This is
+the real-data confirmation of the myopic ceiling D40 measured on the synthetic fixture (`~0.003` of
+`~0.032`), and it is precisely why the ladder continues to the sequential rungs (WS5 setup value, WS7
+offline RL).
 
 ### 6.2 Branched interpretation — four axes
 
@@ -423,80 +487,133 @@ axis; the write-ups below stand alone once the numbers are filled.
 
 #### Gate axis (precondition)
 
-**G-PASS — behavior recovery passes.** The OPE harness recovers the observed policy's value (IPS
-weights ≡ 1 at `α = 0`); every target value below the gate is interpretable. Proceed to the value and
-sequencing axes.
+**Selected by the data (2021–2025). G-PASS — behavior recovery passes.** The OPE harness recovers the
+observed policy's value (IPS weights ≡ 1 at `α = 0`); every target value below the gate is
+interpretable. Proceed to the value and sequencing axes.
 
-**G-FAIL — `FAILED_GATE`.** The harness cannot recover even the *observed* policy's value on this data.
-**Stop.** No target value is trustworthy; paste the `FAILED_GATE` block and diagnose the propensity /
-reward join before reading anything else. This is SPEC §0.3 enforced structurally, not a soft warning.
+*Realized (2021–2025).* Selected. Behavior-policy recovery **PASSES** with observed `+0.0000` and the
+IPS importance weights exactly unit — the OPE harness reproduces the observed held-out mean reward, so
+the estimates below are trustworthy (SPEC §0.3 / D37). This is the precondition the whole reading rests
+on, and it is stated first.
+
+*Pre-registered alternative — not selected.* **G-FAIL — `FAILED_GATE`.** The harness cannot recover even
+the *observed* policy's value on this data. **Stop.** No target value is trustworthy; paste the
+`FAILED_GATE` block and diagnose the propensity / reward join before reading anything else. This is SPEC
+§0.3 enforced structurally, not a soft warning. *Not selected: the gate passed.*
 
 #### Value axis (at moderate `α`, read against `V(μ)`)
 
-**V+ — `lower_95 > V(μ)`: the bandit beats behavior.** The moderate-`α` policy's 95% lower bound clears
-the behavior value: a real improvement over the observed policy *in myopic value*. Before believing it,
-check the support (ESS not collapsed, oos small, max weight moderate) — a "gain" riding on a handful of
-high-weight rows is an artifact. Note this is **not** by itself sequencing evidence (read the P axis):
-the habit-based behavior policy is beatable for count-driven reasons.
+*Pre-registered alternative — not selected.* **V+ — `lower_95 > V(μ)`: the bandit beats behavior.** The
+moderate-`α` policy's 95% lower bound clears the behavior value: a real improvement over the observed
+policy *in myopic value*. Before believing it, check the support (ESS not collapsed, oos small, max
+weight moderate) — a "gain" riding on a handful of high-weight rows is an artifact. Note this is **not**
+by itself sequencing evidence (read the P axis): the habit-based behavior policy is beatable for
+count-driven reasons. *Not selected: on real data every softened policy scored at or below `V(μ)`; no α
+produced a gain over behavior.*
 
-**V0 — CI straddles `V(μ)`: the typical honest outcome.** The policy value is indistinguishable from
-behavior at this scale. The expected result for a conservative myopic recommender on real baseball,
-where value is dominated by the count and the matchup and the room to improve *myopically* is thin.
+*Pre-registered alternative — not selected.* **V0 — CI straddles `V(μ)`: the typical honest outcome.**
+The policy value is indistinguishable from behavior at this scale. The expected result for a
+conservative myopic recommender on real baseball, where value is dominated by the count and the matchup
+and the room to improve *myopically* is thin. *Not selected: the real-data policy did not merely tie
+behavior — it scored below it and the deficit grew with α (V− selected). Observed MLB pitchers are
+already strong enough myopically that even a tie was not reached.*
 
-**V− — `lower_95 < V(μ)`: the policy trails behavior.** The target scores *below* the observed policy —
-a `q̂` or propensity misfit, or a support problem (the target recommends actions the OPE cannot
-evaluate). Diagnose with the oos fraction and max weight before any other reading; do not report a
-prescription from a policy that loses to behavior.
+**Selected by the data (2021–2025). V− — `lower_95 < V(μ)`: the policy trails behavior.** The target
+scores *below* the observed policy — a `q̂` or propensity misfit, or a support problem (the target
+recommends actions the OPE cannot evaluate). Diagnose with the oos fraction and max weight before any
+other reading; do not report a prescription from a policy that loses to behavior.
+
+*Realized (2021–2025).* Selected — but as the **honest, expected** outcome, not a misfit. Every softened
+policy value is `≤ V(μ) = −0.0001`: the `d`-vs-behavior deficit is `−0.0009 / −0.0022 / −0.0045 /
+−0.0089` at `α = 0.10 / 0.25 / 0.50 / 1.0` (`C`/`L1`/`O` near-identical), negative and growing
+monotonically with α while ESS collapses `100% → 24.7% → 5.5% → 1.7% → 0.6%` and oos stays `~0`. The
+diagnosis is *not* a broken evaluator (the gate PASSED and oos is `~0`) — it is the substantive finding:
+**a myopic one-pitch-ahead recommender does not beat observed MLB pitcher behavior at any α > 0.** Every
+move off the observed policy, toward the Thompson target, *lowers* estimated value. This is a
+first-class D39 honest negative and the real-data confirmation of the myopic-ceiling story (§7): greed
+cannot cash the sequencing effect WS3 sees, so it cannot manufacture value the observed policy does not
+already have.
 
 #### Sequencing axis (`O − C` gap — the real question)
 
-**P+ — `O − C` gap CI `> 0`: prescriptively exploitable ordering.** The ordered-state policy beats the
-context-only policy under the fixed evaluator by more than the clustered CI — the ordered state carries
-information a *myopic* recommender can *act on*. This would **exceed the myopic ceiling** the synthetic
-world measures, so it is a strong claim: cross-check it against WS3's order axis (a P+ here should have
-an `H1` there — predictable *and* exploitable order), confirm the gap concentrates in `long_pa` /
-`two_strike` slices, and confirm the per-`α` verdict is `CONSISTENT`. If it survives, the bandit has
-found a myopically-actionable ordered edge and the burden passes to WS7's full OPE battery.
+*Pre-registered alternative — not selected.* **P+ — `O − C` gap CI `> 0`: prescriptively exploitable
+ordering.** The ordered-state policy beats the context-only policy under the fixed evaluator by more
+than the clustered CI — the ordered state carries information a *myopic* recommender can *act on*. This
+would **exceed the myopic ceiling** the synthetic world measures, so it is a strong claim: cross-check
+it against WS3's order axis (a P+ here should have an `H1` there — predictable *and* exploitable order),
+confirm the gap concentrates in `long_pa` / `two_strike` slices, and confirm the per-`α` verdict is
+`CONSISTENT`. If it survives, the bandit has found a myopically-actionable ordered edge and the burden
+passes to WS7's full OPE battery. *Not selected: although the `O − C` gap's CI does exclude 0 from
+`α ≥ 0.1`, its magnitude (`+0.0001`–`+0.0003` run) is far below anything a recommender could act on and
+it grows only as the policy leaves support (ESS `→ 0.6%`) — statistically detectable but not a
+prescriptively exploitable edge, so the selected reading is the negligible `P0` below, not `P+`.*
 
-**P0 — `O − C` gap `≈ 0` (CI contains 0): two sub-readings.** The ordered-state policy is
-indistinguishable from the context-only policy. Which of two things it means is resolved by the
-*positive-world discrimination* check — does the real-data `O − C` sit meaningfully **above** the
-null-world signature (a significantly negative gap from `O`-view overfitting)?
+**Selected by the data (2021–2025). P0 — `O − C` gap ≈ 0 (sequential-not-myopic sub-reading).** The
+ordered-state policy is, in any actionable sense, indistinguishable from the context-only policy. Which
+of two things it means is resolved by the *positive-world discrimination* check — does the real-data
+`O − C` sit meaningfully **above** the null-world signature (a significantly negative gap from `O`-view
+overfitting)?
   - *Nothing there.* If the gap is near the (negative) overfitting baseline, there is no sequencing
     prescription signal — order is either not predictive of outcomes (cross-check WS3's `H2/H3`) or
     predictive-but-not-exploitable.
   - *Sequential-not-myopic.* If the gap sits **above** the overfitting baseline (the positive world's
-    `~+0.003` offset) but its own CI still contains 0, the sequencing signal is *present but below the
+    `~+0.003` offset) but is practically negligible, the sequencing signal is *present but below the
     myopic OPE floor* — the WS4 fixture's own verdict. Route it to WS5/WS7: the effect is a setup effect
     a bandit cannot cash in, and the sequential rungs' acceptance test is to exceed exactly this ceiling
     (D40).
 
-**P− — `O − C` gap CI `< 0`: `O`-view `q̂` overfitting dominates.** The ordered-state policy is
-significantly *worse* than the context-only policy under the fixed evaluator — the null-world signature.
-The extra ordered features in `O`'s `q̂` add estimation variance without prescriptive signal, so the
-`O`-built policy fragments (the prescriptive echo of WS3's negative `Δ_matchup`). Read it as "no
-sequencing prescription edge **and** a real cost of building the policy from the ordered `q̂`," and hand
-the outcome model handed downstream should be the `C`/`L1` one, not `O`.
+*Realized (2021–2025). Selected: the sequential-not-myopic sub-reading, with a real-data refinement.* On
+real data the `O − C` gap is `+0.0000 / +0.0001 / +0.0002 / +0.0003` at `α = 0.10 / 0.25 / 0.50 / 1.0`,
+and its clustered CI **excludes 0** from `α ≥ 0.1` — so, unlike the synthetic fixture (whose CI
+*contained* 0), the sequencing-specific prescriptive advantage is now **statistically detectable**. But
+it is **practically negligible** (`+0.0001`–`+0.0003` run, `L1 − C` tracking `O − C`) and grows *only*
+as the policy moves off support (the gap widens exactly as ESS collapses `24.7% → 0.6%`, i.e. where the
+estimate is least trustworthy). This is the real-data analogue of the myopic ceiling (D40): WS3's
+finding-#2 order signal (`+0.0003` nats of out-of-sample outcome dependence, locked-test replicated) is
+genuinely present, but a greedy one-pitch-ahead recommender cannot convert that sliver into *decision*
+value — the gap is real, tiny, and off-support-driven, not a myopically actionable edge (so **not P+**),
+and it is positive rather than the negative `O`-overfitting signature (so **not P−**). The question of
+whether ordered state carries *actionable* value is therefore routed to the sequential rungs — WS5
+(setup value through the count transition) and WS7 (offline RL) — whose acceptance test is to exceed
+this ceiling.
+
+*Pre-registered alternative — not selected.* **P− — `O − C` gap CI `< 0`: `O`-view `q̂` overfitting
+dominates.** The ordered-state policy is significantly *worse* than the context-only policy under the
+fixed evaluator — the null-world signature. The extra ordered features in `O`'s `q̂` add estimation
+variance without prescriptive signal, so the `O`-built policy fragments (the prescriptive echo of WS3's
+negative `Δ_matchup`). Read it as "no sequencing prescription edge **and** a real cost of building the
+policy from the ordered `q̂`," and hand the outcome model handed downstream should be the `C`/`L1` one,
+not `O`. *Not selected: on real data the `O − C` gap is (barely) positive, not negative — the ordered
+`q̂` does not fragment below `C`, and the null-world overfitting signature did not reproduce on real
+data.*
 
 #### Verdict axis (per-`α`, decision D24)
 
 **CONSISTENT.** DM, SNIPS, and DR agree within the wider of their CI half-widths at this `α`. The
-value and its lower bound are a coherent read.
+value and its lower bound are a coherent read. *Realized (2021–2025): the interior deviation levels
+`α ∈ {0.1, 0.25, 0.5}` are CONSISTENT — the trustworthy rows the reading leans on.*
 
 **INCONCLUSIVE.** The monitored estimators disagree materially. Per SPEC §9's closing rule the verdict
 is **INCONCLUSIVE, not "it works"**: the value is not a coherent read at this `α` (typically a
 high-`α`, low-ESS row where the model-based DM and the weighted DR pull apart). Report it as
-inconclusive and lean on the lower-`α`, higher-ESS rows.
+inconclusive and lean on the lower-`α`, higher-ESS rows. *Realized (2021–2025): the `α = 0` and `α = 1`
+endpoints are INCONCLUSIVE (D24) — this is the estimator-agreement verdict, distinct from and not in
+tension with the gate (the IPS behavior-recovery check, which PASSES); all cells are first-class per
+D39.*
 
 #### Reading the grid
 
-The honest headline is a tuple `(G, V, P, verdict)`. The study's *most anticipated* cell is
-**G-PASS × V0 × P0(sequential-not-myopic) × CONSISTENT** at moderate `α`: the bandit neither beats nor
-trails behavior, order is present but below the myopic floor, and the estimators agree — the WS4
-fixture's own reading, and the one that motivates the sequential rungs. The *strongest* cell is
-**G-PASS × V+ × P+ × CONSISTENT**: a myopically-actionable ordered edge, to be cross-checked hard
-against WS3 and WS7. The *diagnostic* cells are any with **G-FAIL** (stop) or **V−/P−** (misfit /
-overfitting — diagnose before reading).
+The honest headline is a tuple `(G, V, P, verdict)`. *Selected by the data (2021–2025):*
+**G-PASS × V− × P0(sequential-not-myopic) × CONSISTENT (interior α) / INCONCLUSIVE (α ∈ {0, 1})**. The
+gate passes, so the numbers are interpretable; the myopic policy does not merely tie behavior but scores
+*below* it at every α > 0 (`V−`, a shade worse than the *anticipated* `V0`); the ordered-state gap is
+statistically detectable yet negligible and off-support (`P0` sequential-not-myopic); and the interior
+deviation levels agree while the endpoints are INCONCLUSIVE. This is the real-data confirmation of the
+myopic ceiling and the motivation for the sequential rungs. The *strongest* (unrealized) cell would have
+been **G-PASS × V+ × P+ × CONSISTENT**: a myopically-actionable ordered edge, to be cross-checked hard
+against WS3 and WS7. The *diagnostic* cells are any with **G-FAIL** (stop) or a genuinely misfit-driven
+**V−/P−** (diagnose before reading) — here `V−` is the honest negative, not a misfit (the gate PASSED
+and oos is `~0`).
 
 ---
 
@@ -514,6 +631,14 @@ through the count transition) and WS7 (conservative offline RL with the full OPE
 positive-world acceptance by **exceeding 0.003** — turning WS4's honest INCONCLUSIVE into the ladder's
 motivating contrast rather than a dead end.
 
+*Realized (2021–2025): this ceiling is now confirmed on real data, not just the synthetic fixture.* The
+`O − C` sequencing-prescription gap is statistically detectable (CI excludes 0 from `α ≥ 0.1`) but
+negligible (`+0.0001`–`+0.0003` run) and grows only off support, while **every** softened policy scores
+below observed behavior (`V−`) — greed cannot convert WS3's tiny finding-#2 order signal (`+0.0003` nats)
+into decision value. The `~0.003`-of-`~0.032` synthetic ceiling is no longer just a fixture property; the
+real data shows the same shape (a real-but-unactionable sequencing sliver), which is exactly why the
+ladder proceeds to WS5 and WS7 rather than stopping at a myopic recommender.
+
 **What the ambiguity exhibit means for a practitioner.** That `~99%` of recommendations are toss-ups at
 95% confidence is the most practically important number in the workstream. It says that, *under myopia
 and at family resolution*, "the single best next pitch" is usually not a resolvable question: several
@@ -521,7 +646,9 @@ families have expected values within their posterior error bars of each other. T
 takeaway is a **distribution, not a pick** — the Thompson `π̃` already is one, and the honest product of
 a myopic recommender is "these three families are near-equivalent here," not "throw the slider." A
 confident single pick would be over-reading the `q̂` gaps; the workstream's uncertainty machinery exists
-to prevent exactly that.
+to prevent exactly that. *Realized (2021–2025): on real data the mean top-vs-runner-up confidence is
+`~0.57` (below the `~0.62–0.66` synthetic), and `~99%` of the 1,320,705 decidable recommendations are
+toss-ups at 95% — the honest read is even starker on real baseball than on the fixtures.*
 
 **The count-driven-gain trap.** On both worlds the bandit beats the *habit-based* behavior policy in raw
 value. It would be easy — and wrong — to report that as a sequencing result. It is not: the synthetic
@@ -529,7 +656,10 @@ behavior policy is not reward-optimal, so a myopic count-aware policy improves o
 al. (2007) would predict (value is dominated by the count), with no ordered history involved. The `C → O`
 gap is the instrument that isolates sequencing *from* the count-driven gain, which is why the paper leads
 with the gap and not the value-vs-behavior column, and why the notebook's headline prints the count-driven
-explanation whenever a raw gain appears.
+explanation whenever a raw gain appears. *Realized (2021–2025): on real data the trap did not even get the
+chance to fire — observed MLB behavior is already strong enough myopically that the bandit scores* **below**
+*it at every α (`V−`), the reverse of the synthetic worlds whose habit-based behavior was beatable for
+count reasons. The `C → O` gap remains the sequencing instrument, and it is negligible.*
 
 **On the fixed-evaluator choice.** Scoring every view against `O`'s evaluator is what makes the gap an
 information statistic (§4.4). Its tradeoff is that the absolute *level* of each view's value is expressed
@@ -558,6 +688,10 @@ evaluator — is unaffected, which is the whole point.
    is a property of the *validation-scale* fixture; at full-data scale the floor shrinks as `~1/√(ESS)`
    (`THEORY.md` §8), and whether the real-data `C → O` gap resolves above 0 is an open question WS4 poses
    and cannot answer at fixture scale. A P0 at fixture scale does not preclude a P+ at full scale.
+   *Realized (2021–2025): at full data scale the floor did shrink as predicted — the `O − C` gap's CI now
+   resolves above 0 from `α ≥ 0.1` — but the gap stayed negligible (`+0.0001`–`+0.0003`) and
+   off-support-driven, so full scale turned the fixture's P0 into a* statistically detectable but still
+   non-actionable *gap, not the myopically-actionable P+ that would have exceeded the ceiling.*
 5. **The firewall.** WS4 tests whether acting on `q̂` beats behavior *within support*; it does not certify
    `q̂` as causal. A positive `C → O` gap is evidence that ordered `q̂` yields a better *evaluable* policy,
    not proof that *changing* the pitch *causes* the gain — the finding-#3 claim only the full OPE battery
@@ -576,26 +710,42 @@ evaluator — is unaffected, which is the whole point.
 WS4 is the study's first prescriptive rung and its most disciplined honest negative. It builds one
 uncertainty-aware target policy — a feasibility-masked Thompson policy over WS3's posterior `q̂` — and
 subjects it to the OPE gate *before* reporting any value, exactly as SPEC §0.3 demands. Its conclusion is
-branch-conditional and complete once the real numbers arrive:
+branch-conditional and complete now that the real numbers have arrived:
 
-- **If the gate fails (G-FAIL)**, nothing is interpretable and the workstream's honest output is "the
-  harness cannot measure a policy on this data — fix the propensities first."
-- **If the sequencing gap resolves above 0 (P+)**, WS4 has found a myopically-actionable ordered edge that
-  *exceeds* the measured ceiling — a strong claim, to be cross-checked against WS3's order axis and handed
-  to WS7.
-- **If the gap is `≈ 0` (P0)** — the fixture's own reading and the most anticipated real-data outcome — the
-  honest verdict is `SEQ_INCONCLUSIVE_MYOPIC` or `SEQ_NEUTRAL_PRESCRIPTION`, and its *content* is the
-  myopic ceiling: the sequencing effect, if present, is a **setup** effect a bandit provably cannot cash
-  in, which is the falsifiable target (D40) the sequential rungs exist to exceed.
-- **If the gap is negative (P−)**, the ordered `q̂` overfits and the policy should be built from the
-  simpler view — the null-world signature, read as fragmentation, not "order hurts."
+**Selected by the data (2021–2025): G-PASS × V− × P0 (sequential-not-myopic).** The gate passes; the
+myopic policy does not beat observed MLB behavior at any α > 0 (every softened value `≤ V(μ) = −0.0001`,
+the deficit growing `−0.0009 → −0.0089` as ESS collapses `100% → 0.6%`); and the `O − C`
+sequencing-prescription gap is statistically detectable (CI excludes 0 from `α ≥ 0.1`) but negligible
+(`+0.0001`–`+0.0003` run) and off-support-driven — the real-data confirmation of the myopic ceiling. The
+branch-conditional readings below are retained; the selected one is the third.
+
+- *(pre-registered alternative — not selected; the gate passed).* **If the gate fails (G-FAIL)**, nothing
+  is interpretable and the workstream's honest output is "the harness cannot measure a policy on this data
+  — fix the propensities first."
+- *(pre-registered alternative — not selected; the gap resolves above 0 but is negligible and
+  off-support, not a myopically-actionable edge).* **If the sequencing gap resolves above 0 (P+)**, WS4
+  has found a myopically-actionable ordered edge that *exceeds* the measured ceiling — a strong claim, to
+  be cross-checked against WS3's order axis and handed to WS7.
+- **Selected by the data (2021–2025). If the gap is `≈ 0` (P0)** — the fixture's own reading and the
+  realized real-data outcome — the honest verdict is the sequential-not-myopic reading (on real data the
+  gap's CI *excludes* 0 but the magnitude is negligible, `+0.0001`–`+0.0003`), and its *content* is the
+  myopic ceiling: the sequencing effect, though present, is a **setup** effect a bandit provably cannot
+  cash in, which is the falsifiable target (D40) the sequential rungs exist to exceed. Paired with `V−`,
+  the whole prescriptive read is a first-class D39 honest negative.
+- *(pre-registered alternative — not selected; the real-data gap is positive, not negative).* **If the
+  gap is negative (P−)**, the ordered `q̂` overfits and the policy should be built from the simpler view —
+  the null-world signature, read as fragmentation, not "order hurts."
 
 Across every branch the durable contributions are the same: an OPE-gated Bayesian bandit that never
 reports a value it cannot recover the baseline for; a prescriptive ablation that isolates sequencing from
 the count-driven gain under a fixed evaluator; the myopic-ceiling decomposition that measures, to `~0.003`
-of `~0.032`, exactly how much of a setup effect greed can reach; and the ambiguity exhibit's honest
-`~99%`-toss-up statement of how resolvable "best next pitch" really is. WS4's INCONCLUSIVE is the machine
-telling the truth — and the sequel workstreams exist to catch what greed cannot.
+of `~0.032`, exactly how much of a setup effect greed can reach — now **confirmed on real data** (every
+softened policy below behavior, an `O − C` gap that resolves but stays negligible and off-support); and
+the ambiguity exhibit's honest toss-up statement of how resolvable "best next pitch" really is
+(`~0.57` mean top-vs-runner-up confidence, `~99%` toss-ups on real data). WS4's honest negative — the
+myopic policy does not beat observed behavior, and the sequencing prescriptive gap is real but too small
+to act on — is the machine telling the truth, and the sequel workstreams (WS5, WS7) exist to catch what
+greed cannot.
 
 ---
 
@@ -626,5 +776,3 @@ Thompson, W. R. (1933). On the likelihood that one unknown probability exceeds a
 evidence of two samples. *Biometrika*, 25(3/4), 285–294.
 
 Tango, T. M., Lichtman, M. G., and Dolphin, A. E. (2007). *The Book: Playing the Percentages in Baseball*.
-</content>
-</invoke>

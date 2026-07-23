@@ -206,3 +206,54 @@ off-support (ESS -> 0.6%). ~99% of "best next pitch" recommendations are toss-up
 confidence. Consistent with WS3 finding #2 (order helps outcomes, but barely): a greedy
 one-pitch-ahead recommender cannot convert that sliver into decision value. This is the
 honest D39 result and the motivation for the sequential rungs (WS5 setup value, WS7 RL).
+
+---
+
+## WS5 — tabular MDP (setup value, OPE gate) (2026-07-17)
+
+```
+ world          : real   behavior mu: ws3:O
+ rows           : train=2,143,214  eval=1,414,477  eval PAs=364,077
+ behavior recovery: PASS  (observed=+0.0002  IPS weights unit=True)  [gate]
+
+ GREEDY-OPTIMISM EXHIBIT (in-sample greedy MB vs its own held-out FQE@a=1; optimism = gap):
+   count               MB(greedy)+0.0091  sim+0.0093  FQE+0.0049  optimism +0.0043
+   count_prev          MB(greedy)+0.0192  sim+0.0195  FQE+0.0170  optimism +0.0022
+   count_prev_trigger  MB(greedy)+0.0206  sim+0.0210  FQE+0.0179  optimism +0.0027
+   (in-sample greedy value optimistic — max-selection bias, sharper on sparser designs.)
+
+ SETUP GAP vs D40 MYOPIC CEILING (~+0.003; trigger-count; FQE CI = paired refit bootstrap;
+   gate = FQE lo95 > ceiling AND stepDR gap > 0 AND MB gap > 0 at the SAME alpha):
+   a=0.00  FQE=+0.0001 [-0.0001,+0.0003] lo95=-0.0000 | stepDR=-0.0001 | MB=-0.0003
+   a=0.10  FQE=+0.0005 [+0.0001,+0.0008] lo95=+0.0002 | stepDR=+0.0008 | MB=+0.0008
+   a=0.25  FQE=+0.0013 [+0.0003,+0.0020] lo95=+0.0006 | stepDR=+0.0045 | MB=+0.0026
+   a=0.50  FQE=+0.0036 [+0.0017,+0.0054] lo95=+0.0020 | stepDR=+0.0164 | MB=+0.0056
+   a=1.00  FQE=+0.0130 [+0.0076,+0.0188] lo95=+0.0085 | stepDR=-0.0989 | MB=+0.0114
+   (refit bootstrap: 100 reps, 1500 FQE refits, 8578s, 5.7s/fit)
+
+ D42 LADDER CROSS-CHECK: MB-vs-OPE DIVERGES at mid-alphas on every design (MDP value sits
+   outside the held-out OPE CIs — tabular misspecification, reported not averaged).
+
+ SETUP DIAGNOSTICS (count_prev_trigger MDP):
+   setup Q-gap (create-vs-not): mean=-0.0120  median=-0.0093  pos-frac=0.30  (n=135)
+   optimal-action change vs count_prev: 36.6% of 161 states  (mean trigger-creating actions/state=1.86)
+
+ VERDICT: SEQ_NEUTRAL_MDP  — no alpha satisfies the triple gate.
+ elapsed (s): 9464 (~2.6 h)   peak mem (MB): 11314.2
+```
+
+Orchestrator reading (real data): **no robust, estimator-agreed, certifiable sequential setup
+value.** Gate PASSES. The trigger-capable design's FQE gap is positive and clears the myopic
+ceiling at high α (lo95 +0.0085 at α=1) — but the triple gate is NOT met, because (a) the
+stepwise-DR estimator violently disagrees at α=1 (−0.099, ESS 6.3% — off-support, high variance),
+and (b) the **setup Q-gap is NEGATIVE** (mean −0.012, only 30% of trigger states favour creating
+the gap) — the estimated MDP finds that deliberately creating a large consecutive-velocity gap is,
+on average, *not* worth it (the opposite of the synthetic positive world's +0.0087 / 68%). D42
+DIVERGES at mid-α confirms the tabular MDP is optimistic/misspecified, so the lone positive FQE
+lens is not trustworthy on its own. Consistent with WS4 (myopic prescription doesn't beat behavior)
+and WS3 (tiny outcome-order effect): even a model that *can* value setups finds no certifiable
+setup value for the one representable mechanism. WS7's flexible RL is the final word.
+
+Cosmetic note: the printed `SEQ_NEUTRAL_MDP` message reuses the synthetic branch's wording
+("null world … trigger flag inert"); on REAL data the substantive meaning is "no certifiable
+setup value," not literally a null world. Verdict class and the triple-gate logic are correct.

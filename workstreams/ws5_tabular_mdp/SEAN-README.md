@@ -25,6 +25,54 @@ one-sentence result, and it's a proud, honest "not yet":
 
 ---
 
+## What we actually found (2021–2025)
+
+We ran WS5 on five full seasons of real pitches. Here is the plain-English result, before any of the
+machinery below.
+
+**First, the ruler works.** Before trusting any verdict we make the model reproduce the pitcher's *own*
+observed value — and it did (behavior recovery `+0.0002`, right on the money). So everything below is a real
+measurement, not a broken gauge.
+
+**The setup-capable board earned no reliable advantage.** We built the richest board — the one with the extra
+"lamp" that notices a big speed change between the last two pitches, the only board that can even *see* a
+setup — and asked whether it's worth more than the plain count board. Once we demanded that our honest scorers
+*agree* and that the plan stay on data we can actually evaluate, the answer was no: **no reliable setup
+value.** One optimistic scorer (FQE) did like the richest board at full strength — its honest lower bound even
+cleared WS4's `0.003` bar (`+0.0085`) — but it was alone in that, and one lens agreeing with itself is not a
+result.
+
+**The one setup trick we could represent looked slightly *harmful*, not helpful.** This is the interesting
+part. The only setup move this model can express is "make the next pitch a big speed change from this one." We
+asked the model, spot by spot, whether deliberately creating that speed change is worth it — and on real data
+the answer came back **negative** (a `−0.0120` average, worth it in only **30%** of the spots where it
+applies). In our synthetic test world, where we planted a real setup effect on purpose, the same read-out was
+clearly *positive* (worth it about two-thirds of the time). So real MLB data doesn't merely fail to reward
+this particular setup — it leans, mildly, *against* it.
+
+**Two honest scorers disagreed once we pushed far from real behavior, and the board was over-optimistic where
+data was thin.** At full strength the two data-based scorers pulled apart hard — one said `+0.013`, the other
+`−0.099` — because that aggressive plan lands in spots we barely have data for (only about `6%` of the
+effective sample survives). And the board's *own* rosy value floated above the honest held-out score on every
+design (for the richest board, `+0.0206` vs `+0.0179`). Both are the same warning: the little count-and-lamp
+board is too simple to be exactly right, and it's optimistic exactly where the data is thin. That's the
+**DIVERGES** flag — and it's why we don't trust the one optimistic scorer on its own.
+
+**So: not proven — and leaning negative.** That's the honest headline, and it's the same shape as the greedy
+result one rung down (WS4: a one-pitch-at-a-time recommender couldn't beat real pitchers either). Three rungs,
+one story — order barely predicts outcomes (WS3), greed can't cash it (WS4), and even a model *built* to value
+a setup finds no reliable setup value and mildly dislikes the one it can represent (WS5). *(One wording note:
+the tool prints the verdict using our synthetic-world phrase "null world … trigger flag inert." On real data
+that's misleading — the honest meaning is "no certifiable setup value, and the setup trick leans negative,"
+not "there's nothing there." The world isn't inert; it's mildly against the setup.)*
+
+**The flexible model gets the last word.** WS5's board is deliberately simple, and its DIVERGES flag says so
+out loud. The capstone (WS7) uses a richer, more flexible model that can hold setups this board can't, judged
+by the same honest scorers. If there's a real setup edge hiding in a shape the tabular board can't represent,
+WS7 is where it would show up.
+
+---
+
 ## The board game: an MDP in plain words
 
 Picture the at-bat as a little board game. The squares are the **count** — 0-0, 1-0, 0-1, 2-1, and so on —

@@ -1,9 +1,10 @@
 # A Tabular MDP That Values the Setup Pitch, and the Sequential Gate That Keeps It Honest
 
 *Workstream 5 of a comparative pitch-sequencing study — the first sequential prescriptive rung (Phase B).*
-This draft is written to be completed in place: every quantity that depends on the real Statcast data is a
-`{PLACEHOLDER}`, and the Results and Discussion are **branched** so that the correct interpretation is
-already written for whichever numbers arrive. The synthetic-world numbers quoted in §5 are *completed
+This paper is completed in place with the real-data results (2021–2025 Statcast). The Results and Discussion
+were pre-**branched** so that the correct interpretation was already written for whichever numbers arrived;
+the branch **selected by the data** is marked at each fork, and the unselected branches are retained and
+labelled as *pre-registered alternatives*. The synthetic-world numbers quoted in §5 are *completed
 validation* from the committed WS5a run, not placeholders.
 
 ---
@@ -25,10 +26,28 @@ iteration values actions for the trigger they *create*, which the coarser design
 softened target `π_α = (1−α)μ + απ_greedy` (SPEC §9) is scored three ways per `(design, α)` — the exact
 model-based MDP value, held-out step-wise DR, and held-out fitted-Q evaluation (FQE) — with agreement judged
 on real CIs (decision D42, the OPE cross-validation) and divergence **reported, never silently averaged**.
-On the real data (2021–2025 Statcast, `~3.85M` pitches) the behavior recovery is `{GATE}`, the behavior
-value is `V(μ) = {V_MU}`, the top-α trigger-count value gap is `{GAP_TC_TOP}` (refit-bootstrap 95% CI
-`{GAP_TC_TOP_CI}`, one-sided lower bound `{GAP_TC_TOP_LOWER}`) against the D40 myopic ceiling `+0.003`, and
-the verdict is `{VERDICT}`. We validate the method on the correctness oracle with a completed two-world
+On the real data (2021–2025 Statcast; 3,567,640 regular-season decisions, of which WS5 estimates the MDP on
+the 2,143,214 train-fold rows and scores 1,414,477 held-out rows across 364,077 plate appearances) the
+behavior recovery is **PASS** (observed `+0.0002`, IPS weights unit), so the OPE gate is trustworthy; the
+behavior value is `V(μ) = +0.0002`; and at the top `α = 1` the trigger-count value gap is FQE `+0.0130`
+(refit-bootstrap 95% CI `[+0.0076, +0.0188]`, one-sided lower bound `+0.0085`) — which, *in the FQE lens
+alone*, clears the D40 myopic ceiling `+0.003`. The verdict is nonetheless `SEQ_NEUTRAL_MDP`: the
+setup-capable `count_prev_trigger` design earns **no certifiable advantage** over plain `count` once
+estimator agreement and support are enforced, because the triple gate fails on two counts — the step-wise-DR
+gap disagrees violently at `α = 1` (`−0.0989`, ESS `6.3%`, off-support) and the **setup Q-gap is negative**
+(mean `−0.0120`, median `−0.0093`, positive on only `0.30` of the `n = 135` reachable trigger states). That
+negative Q-gap is the interesting real-data finding: the estimated MDP concludes that deliberately creating a
+large consecutive-pitch velocity differential is, on average, **not worth it** on real MLB data — the
+opposite sign of the synthetic positive world (`+0.0087`, `0.68`). The D42 cross-check `DIVERGES` at mid-`α`
+on every design (the tabular MDP is optimistic where cells are thin — greedy `count_prev_trigger` model-based
+`+0.0206` vs held-out FQE `+0.0179`, optimism `+0.0027`), which is why the lone FQE-positive signal cannot be
+trusted on its own. This is consistent with WS4 (a myopic bandit does not beat observed behavior) and WS3 (a
+statistically-real but tiny out-of-sample outcome-order effect): even a model that *can* value a setup finds
+no certifiable setup value for the one representable mechanism, and WS7's flexible offline RL is the final
+word. *(Cosmetic caveat: the tool prints the `SEQ_NEUTRAL_MDP` message reusing the synthetic branch's "null
+world … trigger flag inert" wording; on real data the substantive meaning is "no certifiable setup value,
+with a negative setup mechanism," not a literally null world — the verdict class and the triple-gate logic
+are correct.)* We validate the method on the correctness oracle with a completed two-world
 study. On the **null** world the verdict is `SEQ_NEUTRAL_MDP`: no `α` clears the gate, the trigger flag is
 inert (setup Q-gap mean `+0.0020`, positive fraction `0.49`), and the in-sample model-based values are
 visibly optimistic against their held-out FQE values — the greedy-optimism exhibit. On the **positive**
@@ -362,7 +381,13 @@ bootstrap, §4.5) makes the FQE CI real; the corrected gate then reports `SETUP_
 is honest and reported: **200 replicates × 3 designs × 5 α = 3,000 FQE refits at ≈ 1.1 s/fit ≈ 57 minutes**,
 inside a demo of `~3,850 s` at peak `~1.2 GB`. This is not an embarrassment tucked away; it is the chapter's
 methodological content, and it generalises: in sequential OPE the **variance**, not the point estimate, binds
-a prescriptive claim.
+a prescriptive claim. *Realized on real data (2021–2025): the same paired refit bootstrap ran at production
+scale — **100 replicates × 3 designs × 5 α = 1,500 FQE refits at ≈ 5.7 s/fit ≈ 8,578 s**, inside a 2.6 h run
+at peak 11.3 GB (`--fqe-boot 100`, halved from the 200 default per the RUNBOOK to fit the wall-clock; the CI
+resolution coarsens, the point estimates do not). It produced a genuinely non-degenerate FQE CI whose lower
+bound even clears the ceiling at `α = 1` — and the honest gate still returned no certification, because the
+step-wise-DR lens disagreed and the setup Q-gap was negative (§6). The variance-binds lesson holds one level
+deeper on real data: a real interval is necessary but not sufficient; the lenses must also agree.*
 
 **The D42 divergence, read honestly.** At `α = 0` the three lenses are `CONSISTENT` on every design (the
 MDP's behavior value matches the held-out behavior value). As `α` rises and the design richens they
@@ -386,24 +411,84 @@ genuinely present-but-uncertifiable at synthetic scale.
 
 ### 6.1 The central table (real data)
 
-The behavior-recovery gate, the state-space summary, the per-design/per-`α` three-lens table, and the setup
-gap vs the D40 ceiling.
+The behavior-recovery gate, the state-space summary, the per-design three-lens table at the top `α`, the
+setup gap vs the D40 ceiling across `α`, and the setup diagnostics.
 
-| design | states | reach | `α` | model-based | step-wise DR (CI) | FQE (refit CI) | ESS% | D42 |
-|---|---|---|---|---|---|---|---|---|
-| `count` | 16 | {COUNT_REACH} | {ALPHA_TOP} | {COUNT_MB_TOP} | {COUNT_SWDR_TOP} ({COUNT_SWDR_TOP_CI}) | {COUNT_FQE_TOP} ({COUNT_FQE_TOP_CI}) | {COUNT_ESS_TOP} | {COUNT_D42_TOP} |
-| `count_prev` | 112 | {PREV_REACH} | {ALPHA_TOP} | {PREV_MB_TOP} | {PREV_SWDR_TOP} ({PREV_SWDR_TOP_CI}) | {PREV_FQE_TOP} ({PREV_FQE_TOP_CI}) | {PREV_ESS_TOP} | {PREV_D42_TOP} |
-| `count_prev_trigger` | 220 | {TRIG_REACH} | {ALPHA_TOP} | {TRIG_MB_TOP} | {TRIG_SWDR_TOP} ({TRIG_SWDR_TOP_CI}) | {TRIG_FQE_TOP} ({TRIG_FQE_TOP_CI}) | {TRIG_ESS_TOP} | {TRIG_D42_TOP} |
+**Data vintage.** 3,567,640 regular-season decisions, 2021–2025 (SPEC's ~3.85M counts all game types; the
+config filters to `game_type == "R"`). WS5 estimates the MDP on the **train fold (2021–2023, 2,143,214**
+rows), with the behavior policy `μ` taken from WS3's `O`-view propensities (`behavior μ: ws3:O`, decision
+D33), and scores the held-out evaluation rows — validation (2024) plus the locked test (2025) — for
+**1,414,477 scored decisions across 364,077 plate appearances (episodes)**. All CIs are pitcher-game
+clustered; the FQE gap CIs are a paired refit bootstrap. Wall-clock `~2.6 h` (peak RAM 11,314.2 MB).
 
-**Gate:** {GATE} (behavior recovery {GATE_DETAIL}; IPS weights unit = {IPS_UNIT}). **Behavior value:**
-`V(μ) = {V_MU}`. **Setup gap (trigger − count), refit-bootstrap CI, vs the +0.003 ceiling:** at
-`α = {ALPHA_TOP}`, FQE `{GAP_TC_TOP}` (CI `{GAP_TC_TOP_CI}`, lower 95 `{GAP_TC_TOP_LOWER}`), step-wise DR
-`{GAP_TC_SWDR_TOP}` (CI `{GAP_TC_SWDR_TOP_CI}`), model-based `{GAP_TC_MB_TOP}`. **`count_prev − count` gap:**
-`{GAP_PC_TOP}` (CI `{GAP_PC_TOP_CI}`). **Setup diagnostics:** Q-gap mean `{SETUP_QGAP_MEAN}` (positive
-fraction `{SETUP_QGAP_POSFRAC}`); optimal-action change `{OPT_ACTION_CHANGE}`. **Greedy-optimism (model-based
-greedy − held-out FQE):** `count = {OPT_COUNT}`, `count_prev = {OPT_PREV}`, `count_prev_trigger =
-{OPT_TRIG}`. **Refit-bootstrap cost:** {FQE_REFIT_N} replicates, {FQE_REFIT_FITS} refits,
-{FQE_REFIT_SECONDS} s.
+**Gate (precondition, D37).** Behavior-policy recovery **PASSES**: the OPE harness recovers the observed
+held-out value with the IPS importance weights exactly unit (observed `+0.0002`), so every value below is
+interpretable (SPEC §0.3). **Behavior value** `V(μ) = +0.0002` (the behavior-recovery observed held-out
+value, the `α = 0` baseline).
+
+**The state-space ladder at `α = 1` (per-design three-lens, top `α`).** At the pure target each design's
+softened policy *is* its greedy policy, so the model-based and held-out FQE columns are the two ends of the
+greedy-optimism exhibit:
+
+| design | states | `α` | model-based | FQE (held-out) | greedy-optimism (MB − FQE) | D42 |
+|---|---|---|---|---|---|---|
+| `count` | 16 | 1.00 | +0.0091 | +0.0049 | +0.0043 | DIVERGES¹ |
+| `count_prev` | 112 | 1.00 | +0.0192 | +0.0170 | +0.0022 | DIVERGES¹ |
+| `count_prev_trigger` | 220 | 1.00 | +0.0206 | +0.0179 | +0.0027 | DIVERGES¹ |
+
+¹ MB-vs-OPE `DIVERGES` at mid-`α` on **every** design — the tabular MDP value sits outside the held-out OPE
+CIs — and the `α = 1` model-based-above-FQE optimism shown here (sharper on sparser designs: `count` `+0.0043`
+vs `count_prev_trigger` `+0.0027`, a max-selection bias) is the same phenomenon at its extreme. *(pending:
+per-design absolute step-wise DR, per-design refit-bootstrap CIs, per-design ESS, and reachable-state counts
+are not in the results log; step-wise DR and a refit-bootstrap CI are logged for the trigger − count **gap**
+only — see the next table — and the `α = 1` evaluation is off-support at ESS `≈ 6.3%`.)*
+
+**Setup gap vs the D40 `+0.003` ceiling (trigger − count, across `α`; FQE CI = paired refit bootstrap; the
+triple gate requires FQE lo95 > ceiling AND step-wise-DR gap > 0 AND model-based gap > 0 at the *same* `α`).**
+
+| `α` | FQE gap | refit-bootstrap 95% CI | one-sided lo95 | step-wise DR gap | model-based gap | FQE lo95 clears +0.003? |
+|---|---|---|---|---|---|---|
+| 0.00 | +0.0001 | [−0.0001, +0.0003] | −0.0000 | −0.0001 | −0.0003 | no |
+| 0.10 | +0.0005 | [+0.0001, +0.0008] | +0.0002 | +0.0008 | +0.0008 | no |
+| 0.25 | +0.0013 | [+0.0003, +0.0020] | +0.0006 | +0.0045 | +0.0026 | no |
+| 0.50 | +0.0036 | [+0.0017, +0.0054] | +0.0020 | +0.0164 | +0.0056 | no |
+| 1.00 | +0.0130 | [+0.0076, +0.0188] | +0.0085 | **−0.0989** | +0.0114 | **yes** |
+
+The FQE gap is CI-positive from `α ≥ 0.1`, and its one-sided lower bound clears `+0.003` at `α = 1`
+(lo95 `+0.0085`). But **no `α` satisfies the triple gate**: at `α = 1`, where the FQE lens finally clears,
+the step-wise-DR gap has flipped hard negative (`−0.0989`, ESS `6.3%` — the target is off-support and the
+per-PA weight product is high-variance), so the two held-out estimators disagree exactly where the FQE lens
+looks best. The `count_prev − count` FQE gap at `α = 1` is `+0.0121` *(arithmetically `+0.0170 − +0.0049` from
+the greedy-optimism FQE points; its paired refit-bootstrap CI is not separately logged)*.
+
+**Setup diagnostics (`count_prev_trigger` MDP).** The create-vs-not setup Q-gap has mean `−0.0120`, median
+`−0.0093`, and is positive on only `0.30` of `n = 135` reachable trigger states; the trigger design's optimal
+action differs from `count_prev`'s on `36.6%` of `161` states (mean trigger-creating actions per state
+`1.86`). The Q-gap is **negative** — the estimated MDP finds that deliberately creating the velocity-gap
+trigger is, on average, *not* worth it — the sign-flipped opposite of the synthetic positive world
+(`+0.0087`, positive fraction `0.68`; §5). This, not the value column, is the substantive real-data content.
+
+**Refit-bootstrap cost (realized on real data).** 100 replicates × 3 designs × 5 `α` = **1,500 FQE refits**
+at `≈ 5.7 s/fit`, `8,578 s` total (`--fqe-boot 100`, halved from the 200 default per the RUNBOOK to fit the
+wall-clock; this coarsens the CI resolution but never the point estimates).
+
+**Cosmetic note (verdict wording), a results caveat.** The printed `SEQ_NEUTRAL_MDP` message reuses the
+synthetic branch's wording ("null world … trigger flag inert"). On real data that phrasing is misleading: the
+verdict **class** (`SEQ_NEUTRAL_MDP`) and the triple-gate logic are correct, but the substantive meaning is
+**"the setup-capable design earns no certifiable advantage over `count`, and the one representable setup
+mechanism (a large consecutive-pitch velocity gap) shows a negative in-model Q-gap,"** *not* "the world is
+null." The real data is not inert — it actively leans against the setup.
+
+**Headline (real data, 2021–2025).** The setup-capable `count_prev_trigger` design earns **no certifiable
+setup value**. The interesting finding is the **negative setup Q-gap** (`−0.0120`, positive on only 30% of
+trigger states): on real MLB data the estimated MDP judges the one representable setup mechanism slightly
+*harmful*, the opposite of the synthetic positive world. The lone FQE-positive signal (lo95 `+0.0085 > +0.003`
+at `α = 1`) does **not** survive, because the two held-out estimators disagree there (step-wise DR `−0.0989`,
+off-support) and the D42 cross-check `DIVERGES` at mid-`α` (the tabular MDP is optimistic where cells are
+thin). This is consistent with WS4 (a myopic bandit does not beat observed behavior) and WS3 (a
+statistically-real but tiny out-of-sample order effect): even a model built to value a setup finds no
+certifiable setup value for the one mechanism it can represent — and WS7's flexible offline RL is the final
+word.
 
 ### 6.2 Branched interpretation — three axes
 
@@ -420,15 +505,24 @@ read (the analogue of WS1's D21 and WS4's myopic-ceiling rule):
 
 #### Design-ladder axis (`S+` / `S0` / `S−`)
 
-**S+ — the trigger/prev designs beat `count` with real-CI clearance.** At some `α` the refit-bootstrap FQE
+*Selected by the data (2021–2025): a blend of **S0 and S−** — directional-but-uncertifiable in the FQE lens,
+and leaning negative on the setup mechanism itself. The trigger − count FQE gap is directionally positive and
+its lower bound even clears the ceiling at `α = 1`, but the other lenses do not corroborate it (S0), and the
+setup Q-gap is negative (S−, in spirit).*
+
+*Pre-registered alternative — not selected.* **S+ — the trigger/prev designs beat `count` with real-CI
+clearance.** At some `α` the refit-bootstrap FQE
 trigger-count gap's one-sided lower bound clears `+0.003` — **sequential prescription value found**, a setup
 the myopic bandit provably could not cash. This is a strong claim: cross-check it against WS3's H-branch (was
 the order predictive out of sample?) and WS4's P-branch (a myopic `SEQ_INCONCLUSIVE_MYOPIC` there, exceeded
 here, is the D40 handoff working). Confirm the step-wise-DR and model-based gaps are directionally positive
 at the same `α`, and that the D42 cell is not `DIVERGES`. If it survives, the burden passes to WS7's full
-offline-RL battery.
+offline-RL battery. *Not selected: no `α` clears the triple gate. The FQE lens's one-sided lower bound does
+clear `+0.003`, but only at `α = 1` (lo95 `+0.0085`), where the step-wise-DR gap has flipped to `−0.0989`
+(off-support, ESS `6.3%`) and the D42 cell `DIVERGES` — so the certifiable-clearance S+ requires is not met.*
 
-**S0 — directional but uncertifiable (the synth-validated pattern).** The gap is directionally positive in
+**Selected by the data (2021–2025). S0 — directional but uncertifiable (the synth-validated pattern).** The
+gap is directionally positive in
 all three lenses and above the null world's baseline, but its refit-bootstrap lower bound does not clear the
 ceiling — the fixture's own `SETUP_INCONCLUSIVE`. Report the *evidence story*, not a null: directional
 agreement, the world-discriminating setup diagnostics, and the constructed-world proof that the machinery
@@ -436,7 +530,15 @@ cashes setups. State the `n`-to-certify back-of-envelope (CI half-width `~ c/√
 `+0.008` gap to clear `+0.003` needs several-fold more effective clusters, and the full data is `~40×` the
 fixture) as a concrete Phase-2 prediction. This is the most anticipated real-data outcome at moderate scale.
 
-**S− — the richer designs lose (sparsity / overfit).** The trigger-count gap's CI upper bound is below zero:
+*Realized (2021–2025).* Selected — with a real-data twist that the synthetic fixture did not have. The FQE
+lens *is* directionally positive and CI-positive from `α ≥ 0.1`, and its lower bound even clears the ceiling
+at `α = 1` (lo95 `+0.0085`) — but unlike the fixture, where all three lenses agreed in sign, here the other
+two lenses do **not** corroborate it at the deciding `α` (step-wise DR `−0.0989`; D42 `DIVERGES`). So the
+honest reading is directional-but-uncertifiable, not S+: the disagreement, not agreement, is the story, and
+certification is denied by estimator conflict rather than by CI width alone.
+
+**Selected by the data (2021–2025) — the negative lean (in spirit). S− — the richer designs lose (sparsity /
+overfit).** The trigger-count gap's CI upper bound is below zero:
 the richer state is worth *less* than `count` out of sample. Read it through the per-`(s, a)` support
 histograms and the greedy-optimism exhibit — the 216-state design is estimated from far thinner cells than
 the 16-state one, so its extra resolution adds estimation variance without prescriptive signal (the
@@ -444,13 +546,26 @@ state-space echo of WS3's negative `Δ_matchup` and WS4's `O`-view overfitting).
 sequential prescription edge **and** a real estimation cost of the richer state," and the policy handed
 downstream should be built from the coarser design.
 
+*Realized (2021–2025).* Selected *in spirit*, as the leaning-negative half of the reading. The literal S−
+condition did not fire — the trigger − count value gap's upper bound is positive, not below zero. What is
+negative is the **setup Q-gap itself** (mean `−0.0120`, positive on only 30% of `n = 135` trigger states):
+the estimated MDP judges the one representable setup mechanism slightly *harmful* on average, the sign-flipped
+opposite of the synthetic positive world (`+0.0087`, 68%). The richer design's raw value is higher, but that
+is count-driven and optimistic (the greedy-optimism exhibit and the D42 `DIVERGES`), not setup value. So the
+honest downstream reading is "no certifiable setup edge, and the representable setup mechanism leans negative"
+— the state-space echo of WS4's `V−` and WS3's tiny-but-real order story, one rung up.
+
 #### D42 agreement axis (`A+` / `A−`)
 
-**A+ — the three lenses agree (trust the value).** Model-based, step-wise DR, and FQE sit inside each other's
+*Pre-registered alternative — not selected.* **A+ — the three lenses agree (trust the value).** Model-based,
+step-wise DR, and FQE sit inside each other's
 95% CIs wherever both are assessable; the value is a coherent read and the ladder gap can be taken at face
-value (subject to its own CI). Expect this at low `α`, where the softened policy stays near behavior.
+value (subject to its own CI). Expect this at low `α`, where the softened policy stays near behavior. *Not
+selected: on real data the lenses do not agree — MB-vs-OPE `DIVERGES` at mid-`α` on every design, and at
+`α = 1` the step-wise-DR gap (`−0.0989`) is the opposite sign of the FQE gap (`+0.0130`).*
 
-**A− — `DIVERGES` (a misspecification diagnostic, not an averaging problem).** The estimated MDP's value of
+**Selected by the data (2021–2025). A− — `DIVERGES` (a misspecification diagnostic, not an averaging
+problem).** The estimated MDP's value of
 the softened policy sits outside the held-out OPE's real CIs — reported per D42, never silently averaged. On
 the synthetic worlds this grows with `α` and design richness: it is the tabular state's in-sample optimism at
 thin cells, and it says the count-plus-trigger abstraction is **not Markov-sufficient**. For WS7 this is the
@@ -458,29 +573,58 @@ explicit brief — a richer function class is the response to a `DIVERGES` here,
 philosophy carries over. When A− fires, lean on the held-out FQE gap and its refit CI, never the in-sample
 model value.
 
+*Realized (2021–2025).* Selected. MB-vs-OPE `DIVERGES` at mid-`α` on **every** design. The greedy-optimism
+exhibit is the same effect at `α = 1`: `count_prev_trigger` model-based `+0.0206` sits above its held-out FQE
+`+0.0179` (optimism `+0.0027`; `count` `+0.0043`, `count_prev` `+0.0022` — sharper on sparser designs). So the
+reading leans on the held-out FQE gap and its refit CI, never the in-sample model value — and the lone
+FQE-positive signal, lacking model-based *and* step-wise-DR corroboration at the deciding `α`, cannot be
+certified. The tabular count-plus-trigger state is not Markov-sufficient on real data; answering that is the
+explicit brief handed to WS7.
+
 #### Verdict axis (`SETUP_EXPLOITED` / `SETUP_INCONCLUSIVE` / `SEQ_NEUTRAL_MDP`), under D39
 
-**`SETUP_EXPLOITED`.** The triple condition holds at some `α`: the tabular MDP cashes a setup pitch on
+*Pre-registered alternative — not selected.* **`SETUP_EXPLOITED`.** The triple condition holds at some `α`:
+the tabular MDP cashes a setup pitch on
 held-out data beyond the myopic ceiling — the ladder's motivating contrast delivered. Never fabricated; it
-fires only on a real, non-degenerate lower bound.
+fires only on a real, non-degenerate lower bound. *Not selected: no `α` meets the triple condition — the FQE
+lo95 clears only at `α = 1`, where step-wise DR is negative and D42 `DIVERGES`.*
 
-**`SETUP_INCONCLUSIVE` (D39 first-class, the fixture's verdict).** No `α` meets the triple condition on a
+*Pre-registered alternative — not selected.* **`SETUP_INCONCLUSIVE` (D39 first-class, the fixture's
+verdict).** No `α` meets the triple condition on a
 positive world. The effect is present, representable, and directionally agreed, but the sequential-OPE
 variance cannot certify it at this scale — the sequential twin of WS4's `SEQ_INCONCLUSIVE_MYOPIC`, with
-certification deferred to Phase-2 data scale.
+certification deferred to Phase-2 data scale. *Not selected: this was the synthetic **positive** world's
+verdict, where all three lenses agreed in sign and only the CI width blocked certification. On real data the
+estimators disagree in sign at the deciding `α` and the setup Q-gap is negative, so the honest class is
+`SEQ_NEUTRAL_MDP` (no certifiable setup value), not a directional-positive INCONCLUSIVE.*
 
-**`SEQ_NEUTRAL_MDP` (the null world's expected result).** No `α` meets the triple condition and the ladder
-shows no held-out advantage — the trigger flag is inert, the richer designs worth no more than `count` up to
-overfitting cost, the setup diagnostics at their noise floor. The null control passing.
+**Selected by the data (2021–2025). `SEQ_NEUTRAL_MDP`.** No `α` meets the triple condition and the ladder
+shows no held-out advantage — the richer designs worth no more than `count` up to
+overfitting cost. *(On the null world this reads as "the trigger flag is inert, the setup diagnostics at
+their noise floor, the null control passing." On real data the class is the same but the substance differs —
+see below and the cosmetic note in §6.1.)*
+
+*Realized (2021–2025).* Selected — but read it as **"no certifiable setup value,"** NOT the null world's
+"trigger flag inert." The printed message reuses the synthetic branch's null-world wording (cosmetic note,
+§6.1); the verdict **class** and triple-gate logic are correct, while the substance is different: the
+setup-capable design earns no certifiable advantage over `count`, and the one representable setup mechanism
+shows a **negative** in-model Q-gap (`−0.0120`, positive on 30% of trigger states). The real data is not
+inert — it leans against the setup. This is the honest D39 first-class negative for a *real* world, not a
+passing null control.
 
 #### Reading the grid
 
-The honest headline is a triple `(S, A, verdict)`. The *most anticipated* real-data cell is
-**S0 × A− × `SETUP_INCONCLUSIVE`** at moderate scale — a real setup effect present but below the
-sequential-OPE floor, with the tabular state visibly imperfect (A−), motivating WS7. The *strongest* cell is
-**S+ × A+ × `SETUP_EXPLOITED`**: a certified setup with agreeing lenses, cross-checked against WS3/WS4 and
-handed to WS7. The *null* cell is **S0(inert) × (A±) × `SEQ_NEUTRAL_MDP`**. The *diagnostic* cell is any
-**S−** (richer-design overfit — build from the coarser state).
+The honest headline is a triple `(S, A, verdict)`. *Selected by the data (2021–2025):*
+**S0/S− × A− × `SEQ_NEUTRAL_MDP`** — the FQE trigger − count gap is directionally positive and its lower
+bound even clears the ceiling at `α = 1` (S0), but the lenses `DIVERGE` and disagree in sign there (A−), and
+the setup Q-gap itself is negative (S−, in spirit), so no certifiable setup value is found. This landed *near*
+the pre-registered *most anticipated* cell **S0 × A− × `SETUP_INCONCLUSIVE`** (a real setup present but below
+the sequential-OPE floor, tabular state visibly imperfect) but the verdict class is the neutral one and the
+setup mechanism leaned negative rather than merely uncertifiable-positive. The *strongest* (unrealized) cell
+would have been **S+ × A+ × `SETUP_EXPLOITED`**: a certified setup with agreeing lenses, cross-checked against
+WS3/WS4 and handed to WS7. The pre-registered *null* cell is **S0(inert) × (A±) × `SEQ_NEUTRAL_MDP`** — the
+class realized, but on real data with a negative-leaning mechanism, not an inert flag. The *diagnostic* note
+is any **S−** (richer-design overfit — build from the coarser state).
 
 ---
 
@@ -496,6 +640,14 @@ swallowed by the noise floor — one rung up and sharper, because here the failu
 that generalises is the binding reading rule (§6.2): gate on a real interval, print degenerate CIs as `n/a`,
 never promote a point to a certification.
 
+*Realized (2021–2025): the lesson deepened on real data. The refit bootstrap produced a genuinely
+non-degenerate FQE interval whose lower bound even cleared the `+0.003` ceiling at `α = 1` (lo95 `+0.0085`) —
+so, unlike the synthetic fixture, CI width was **not** the binding constraint. Certification still failed,
+because the honest gate requires the lenses to **agree**: the step-wise-DR gap was the opposite sign
+(`−0.0989`, off-support) and the model-based lens `DIVERGED` from the held-out ones. A real interval is
+necessary but not sufficient; agreement across independent estimators is the second half of the discipline,
+and it is what turned a lone FQE-positive point into an honest `SEQ_NEUTRAL_MDP`.*
+
 **The WS4 → WS5 → WS7 arc.** Each rung's honest negative is the next rung's motivating contrast. WS4 measured
 the myopic ceiling and handed WS5 a falsifiable target; WS5 proved the setup is *representable* and cashable
 in principle and bound its *certification* to the sequential-OPE variance; WS7 inherits both — the paired-
@@ -504,10 +656,24 @@ state raises. The ladder is designed so that "the setup is real but I can't cert
 is the precise handoff to "here is a function class that can represent more of it, evaluated with the same
 honesty" (WS7).
 
+*Realized (2021–2025): the arc holds, and the real handoff is sharper than the synthetic one. The three rungs
+tell one consistent story — WS3's tiny out-of-sample outcome-order effect (`+0.0003` nats) → WS4's
+no-myopic-value (every softened policy below behavior) → WS5's no-certifiable-setup-value. WS5 additionally
+finds the one representable setup mechanism leaning **negative** (Q-gap `−0.0120`), so the handoff to WS7 is
+not "certify a setup a well-specified tabular MDP already sees" but "find setup value that a well-specified
+tabular MDP could not, and resolve the D42 `DIVERGES` its abstraction raised." WS7's flexible offline RL gets
+the last word.*
+
 **The count-driven baseline.** As in WS4, a policy can beat the habit-based synthetic behavior in raw value
 for count reasons (value is dominated by the count; Tango et al., 2007), which is *not* sequencing. The
 trigger-count *gap* under a common held-out lens is the instrument that isolates the setup value from the
 count-driven gain, which is why the paper leads with the gap and not the raw value column.
+
+*Realized (2021–2025): the raw values climb monotonically with design richness (`count` FQE `+0.0049` →
+`count_prev` `+0.0170` → `count_prev_trigger` `+0.0179` at `α = 1`), which would be a tempting but false
+"richer state wins" story. It is count/matchup-driven and optimistic (the greedy-optimism gaps and the D42
+`DIVERGES`), not setup value — exactly why the verdict rests on the trigger − count gap under a common
+held-out lens, and why that gap, not the value column, decided `SEQ_NEUTRAL_MDP`.*
 
 **The firewall.** WS5 tests whether *acting* on the estimated MDP beats behavior *within support*; it does
 not certify the trigger as *causal*. `SETUP_EXPLOITED` is evidence the ordered state yields a better
@@ -530,9 +696,15 @@ WS7's full battery, with its support diagnostics and estimator agreement, can ap
 3. **Certification is variance-bound, not point-bound.** The binding constraint is the refit-bootstrap CI
    width, not the gap's sign. At synthetic scale it cannot clear the ceiling; whether it does at full scale
    is the open question, and the `n`-to-certify arithmetic (§6.2) is a back-of-envelope, not a guarantee.
+   *Realized (2021–2025): at full scale the CI did shrink as predicted — the FQE gap's refit-bootstrap lower
+   bound cleared `+0.003` at `α = 1` (lo95 `+0.0085`) — so CI width was no longer the binding constraint.
+   What denied certification instead was **estimator disagreement** (step-wise DR `−0.0989`, opposite sign)
+   and the **negative setup Q-gap**; the honest gate needs the lenses to agree, not merely a narrow interval,
+   so the fixture-scale prediction ("more clusters will certify it") was not the mechanism that mattered.*
 4. **Refit-bootstrap cost on real data.** The default `--fqe-boot 200` is `~3,000` refits; at `~1.5M`
    held-out rows budget up to a few hours, and lower `--fqe-boot` to 50–100 if slow (RUNBOOK WS5.1) — it
-   changes only the CI resolution, never the point estimates.
+   changes only the CI resolution, never the point estimates. *Realized (2021–2025): the run used
+   `--fqe-boot 100` (1,500 refits, `≈ 5.7 s/fit`, `8,578 s`), within a 2.6 h total at peak 11.3 GB.*
 5. **Behavior model.** Without `--ws3-dir`, the OPE denominator is the coarser state-conditional empirical
    behavior from train counts; the behavior-recovery gate still guards it, but WS3's contextual `μ` tightens
    the importance weights.
@@ -550,24 +722,48 @@ WS5 is the study's first sequential prescriptive rung and its most instructive m
 builds a transparent tabular MDP whose trigger flag makes a setup pitch *representable*, plans it with exact
 undiscounted policy iteration, and subjects its softened policy to the OPE gate — behavior recovery first,
 then the setup gap scored against WS4's measured myopic ceiling with a **real** confidence interval. Its
-conclusion is branch-conditional and complete once the real numbers arrive:
+conclusion is branch-conditional and complete now that the real numbers have arrived:
 
-- **If the gap clears the ceiling with a real CI (S+ → `SETUP_EXPLOITED`)**, the tabular MDP has cashed a
+**Selected by the data (2021–2025): S0/S− × A− × `SEQ_NEUTRAL_MDP` — no certifiable setup value, leaning
+negative.** The gate passes (behavior recovery `+0.0002`, IPS weights unit). The trigger − count FQE gap is
+directionally positive and its refit-bootstrap lower bound even clears `+0.003` at `α = 1` (lo95 `+0.0085`),
+but the triple gate is not met: the step-wise-DR gap flips to `−0.0989` there (off-support, ESS `6.3%`), the
+D42 cross-check `DIVERGES` at mid-`α`, and the setup Q-gap is **negative** (`−0.0120`, positive on 30% of
+trigger states). So the setup-capable design earns no certifiable advantage over `count`, and the one
+representable setup mechanism leans slightly harmful in-model — the sign-flipped opposite of the synthetic
+positive world. The verdict class is `SEQ_NEUTRAL_MDP`, read as "no certifiable setup value" (not the printed
+synthetic "null world" wording; §6.1 cosmetic note). This is consistent with WS4 (a myopic bandit does not
+beat observed behavior) and WS3 (a real but tiny outcome-order effect), and WS7's flexible offline RL is the
+final word. The branch-conditional readings below are retained; the selected one is the S0/S− blend under
+`SEQ_NEUTRAL_MDP`.
+
+- *(pre-registered alternative — not selected; no `α` cleared the triple gate).* **If the gap clears the
+  ceiling with a real CI (S+ → `SETUP_EXPLOITED`)**, the tabular MDP has cashed a
   setup pitch beyond what a myopic policy could reach — a strong claim, cross-checked against WS3/WS4 and
   handed to WS7.
-- **If the gap is directional but uncertifiable (S0 → `SETUP_INCONCLUSIVE`)** — the fixture's own reading and
+- *(partially realized — the directional-but-uncertifiable shape is half of the selected reading, but the
+  verdict class is `SEQ_NEUTRAL_MDP`, not `SETUP_INCONCLUSIVE`).* **If the gap is directional but uncertifiable
+  (S0 → `SETUP_INCONCLUSIVE`)** — the fixture's own reading and
   the most anticipated real-data outcome — the honest content is that the setup is real and representable but
   below the sequential-OPE floor, with the `n`-to-certify arithmetic as the falsifiable Phase-2 prediction.
-- **If the richer designs lose (S−)**, the tabular state overfits and the policy should be built from the
-  coarser design — read as fragmentation, not "order hurts."
-- **On the null world (`SEQ_NEUTRAL_MDP`)**, the machinery correctly finds nothing where there is nothing.
+  *On real data the FQE lens was directional-but-uncertifiable as anticipated, but the estimators disagreed in
+  sign and the setup Q-gap was negative, so the class is the neutral one, not a directional-positive
+  INCONCLUSIVE.*
+- *(selected in spirit — the leaning-negative half).* **If the richer designs lose (S−)**, the tabular state
+  overfits and the policy should be built from the
+  coarser design — read as fragmentation, not "order hurts." *Realized via the **negative setup Q-gap** rather
+  than a negative value-gap: the representable setup mechanism leans harmful, not merely absent.*
+- *(selected verdict class — but reframed).* **On the null world (`SEQ_NEUTRAL_MDP`)**, the machinery
+  correctly finds nothing where there is nothing. *On real data the same class means "no certifiable setup
+  value with a negative-leaning mechanism," not an inert flag; the real world is not null.*
 
 Across every branch the durable contributions are the same: a setup-capable tabular state design proven to
 cash a setup by a constructed-world test; a paired-refit sequential gate that never certifies a claim on a
 degenerate interval; a D42 triple-lens cross-validation that reports divergence rather than averaging it away;
-and the honest-INCONCLUSIVE finding that the setup effect is real, representable, and — at this scale —
-uncertifiable. WS5's INCONCLUSIVE is the machine telling the truth about its own confidence, and the variance
-it exposes is the exact thing the capstone exists to shrink.
+and, on real data, the honest finding that the setup-capable design earns **no certifiable value** and the one
+representable setup mechanism leans **negative** — the machine telling the truth about a real world that does
+not reward the setup it can see. The variance it exposes, and the misspecification the D42 `DIVERGES` flags,
+are the exact things the capstone exists to shrink and to answer.
 
 ---
 
